@@ -1,0 +1,53 @@
+# Compilación
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# =========================
+# NuGet
+# =========================
+
+*.nupkg
+*.snupkg
+
+# =========================
+# Configuración local
+# =========================
+
+appsettings.Development.json
+
+# =========================
+# Secretos y credenciales
+# =========================
+
+secrets.json
+.env
+
+# Certificados locales
+*.pfx
+
+# =========================
+# Sistema operativo
+# =========================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
