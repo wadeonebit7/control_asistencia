@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace control_asistencia.Models
 {
@@ -12,6 +13,9 @@ namespace control_asistencia.Models
 
         [Required(ErrorMessage = "El ID del personal es obligatorio")]
         public int ID_Personal { get; set; }
+        [ForeignKey("Id_Personal")]
+        public virtual PERSONAL? PERSONAL { get; set; }
+
 
         [Required(ErrorMessage = "El estatus es obligatorio")]
         [StringLength(30, ErrorMessage = "El estatus no puede superar los 30 caracteres")]

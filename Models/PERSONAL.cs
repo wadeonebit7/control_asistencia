@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace control_asistencia.Models
 {
@@ -8,6 +9,13 @@ namespace control_asistencia.Models
         public int ID { get; set; }
 
         public bool STATE { get; set; }
+
+        [Required(ErrorMessage = "El rol es obligatorio")]
+        public int ID_ROL { get; set; }
+
+        [ForeignKey("ID_ROL")]
+        public virtual ROL? ROL { get; set; }
+
 
         [Required(ErrorMessage = "El RUT es obligatorio")]
         [StringLength(12, ErrorMessage = "El RUT no puede superar los 12 caracteres")]

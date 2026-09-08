@@ -6,7 +6,7 @@ namespace control_asistencia.Models
 
 
 
-    public class Rol
+    public class ROL
     {
         [Key]
         public int ID { get; set; }
