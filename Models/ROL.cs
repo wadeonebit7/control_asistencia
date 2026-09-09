@@ -1,26 +1,20 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace control_asistencia.Models
 {
-
-
-
-
-    public class ROL
+    [Table("rol")]
+    public class Rol
     {
         [Key]
-        public int ID { get; set; }
+        [Column("id")]
+        public int Id { get; set; }
 
-
-        [Required]
-        public bool State { get; set; }
+        [Column("estado")]
+        public bool Estado { get; set; }
 
         [Required(ErrorMessage = "El nombre del rol es obligatorio")]
-        [StringLength(35 , MinimumLength =4 , ErrorMessage ="El minimo es entre 4 y 35 caracteres para asignar nombre a un rol")]
-        public string Nombre { get; set; }
-
-
-
-
+        [Column("nombre")]
+        public string Nombre { get; set; } = string.Empty;
     }
 }

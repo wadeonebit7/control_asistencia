@@ -1,0 +1,27 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+
+<div class="card-body">
+    <form asp-controller="Usuarios" asp-action="LoginClaveDinamica" method="post">
+        @Html.AntiForgeryToken()
+
+        <div class="form-group mb-4">
+            <label class="control-label fw-semibold text-light mb-2">Clave Dinámica</label>
+            <div class="input-group">
+                <span class="input-group-text custom-addon"><i class="bi bi-key-fill"></i></span>
+                <input name="claveDinamica" type="text" class="form-control custom-input text-uppercase"
+                       maxlength="7" placeholder="Ej: CAMI12" required autocomplete="off" />
+            </div>
+            <small class="text-muted d-block mt-1">Ingresa tu código único de hasta 7 caracteres.</small>
+        </div>
+
+        <div class="pt-2">
+            <button type="submit" class="btn btn-login-dragon w-100 text-white shadow-sm">
+                <i class="bi bi-ticket-perforated-fill me-1"></i> Ingresar con Ticket
+            </button>
+        </div>
+    </form>
+</div>

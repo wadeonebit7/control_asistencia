@@ -8,11 +8,10 @@ namespace control_asistencia.Data
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext>options):base(options) { }
 
-        public DbSet<ROL> ROL { get; set; }
 
-        public DbSet<USUARIOS> USUARIOS {  get; set; }
-
-        public DbSet<PERSONAL> PERSONAL { get; set; }
+        public DbSet<Personal> Personal { get; set; }
+        public DbSet<Rol> Rol { get; set; }
+        public DbSet<Usuarios> Usuarios { get; set; }
 
     }
 }

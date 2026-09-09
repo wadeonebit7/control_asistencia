@@ -76,14 +76,15 @@
                 </div>
             }
 
-            <form method="post" asp-action="Login">
+            <form asp-controller="Usuarios" asp-action="Login" method="post">
                 @Html.AntiForgeryToken()
 
                 <div class="form-group mb-3">
-                    <label class="control-label fw-semibold text-light mb-2">Usuario</label>
+                    <label class="control-label fw-semibold text-light mb-2">Correo</label>
                     <div class="input-group">
-                        <span class="input-group-text custom-addon"><i class="bi bi-person-fill"></i></span>
-                        <input name="username" type="text" class="form-control custom-input" required autocomplete="off" />
+                        <span class="input-group-text custom-addon"><i class="bi bi-envelope-fill"></i></span>
+                       
+                        <input name="Correo" type="email" class="form-control custom-input" required autocomplete="off" />
                     </div>
                 </div>
 
@@ -91,7 +92,7 @@
                     <label class="control-label fw-semibold text-light mb-2">Contraseña</label>
                     <div class="input-group">
                         <span class="input-group-text custom-addon"><i class="bi bi-lock-fill"></i></span>
-                        <input name="password" type="password" class="form-control custom-input" required />
+                        <input name="Password" type="password" class="form-control custom-input" required />
                     </div>
                 </div>
 
