@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <Folder Include="Views\Recursos\" />
-    <Folder Include="Views\Trabajador\" />
   </ItemGroup>
 
 </Project>

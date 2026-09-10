@@ -1,0 +1,131 @@
+﻿@{
+    ViewData["Title"] = "Registrar Entrada";
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<style>
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+    }
+
+    .dashboard-card {
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(16, 185, 129, 0.15);
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-entrada {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 14px 20px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+    }
+
+        .btn-entrada:hover:not(:disabled) {
+            background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
+        }
+
+        .btn-entrada:disabled {
+            background: #334155;
+            color: #94a3b8 !important;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+    .custom-checkbox-wrapper {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+        .custom-checkbox-wrapper:hover {
+            border-color: rgba(16, 185, 129, 0.5);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+    .form-check-input:checked {
+        background-color: #10b981;
+        border-color: #10b981;
+    }
+</style>
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 85vh;">
+    <div class="card dashboard-card p-4 w-100" style="max-width: 480px;">
+        <div class="card-body text-center">
+
+            <div class="mb-4">
+                <div class="d-inline-block p-4 rounded-circle mb-3" style="background: rgba(16, 185, 129, 0.1);">
+                    <i class="bi bi-box-arrow-in-right text-success" style="font-size: 3.5rem;"></i>
+                </div>
+                <h3 class="text-white fw-bold mb-1">Registro de Entrada</h3>
+                <p class="text-muted small">Inicia tu jornada laboral</p>
+            </div>
+
+            <div class="mb-4">
+                <h1 class="text-success fw-bold display-4 mb-0" id="relojEntrada">--:--</h1>
+                <p class="text-secondary" id="fechaEntrada">Cargando fecha...</p>
+            </div>
+
+            
+            <div>
+                <div class="custom-checkbox-wrapper d-flex align-items-center text-start mb-4" onclick="document.getElementById('checkEntrada').click()">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input me-3" type="checkbox" id="checkEntrada">
+                        <label class="form-check-label text-white fw-semibold" for="checkEntrada" style="cursor: pointer;">
+                            Declaro y confirmo mi marcaje de ENTRADA en este horario.
+                        </label>
+                    </div>
+                </div>
+
+                <button type="button" id="btnEntrada" class="btn btn-entrada w-100 text-white shadow-sm" disabled>
+                    <i class="bi bi-play-circle-fill me-2"></i> Registrar Entrada
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <a href="@Url.Action("Index", "Trabajador")" class="text-muted text-decoration-none small">
+                    <i class="bi bi-arrow-left me-1"></i> Volver al panel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const checkboxEntrada = document.getElementById('checkEntrada');
+        const btnEntrada = document.getElementById('btnEntrada');
+
+        checkboxEntrada.addEventListener('change', function () {
+            btnEntrada.disabled = !this.checked;
+        });
+
+        function actualizarRelojEntrada() {
+            const ahora = new Date();
+            const horas = String(ahora.getHours()).padStart(2, '0');
+            const minutos = String(ahora.getMinutes()).padStart(2, '0');
+            const segundos = String(ahora.getSeconds()).padStart(2, '0');
+            document.getElementById('relojEntrada').textContent = `${horas}:${minutos}:${segundos}`;
+
+            const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            let textoFecha = ahora.toLocaleDateString('es-CL', opcionesFecha);
+            document.getElementById('fechaEntrada').textContent = textoFecha.charAt(0).toUpperCase() + textoFecha.slice(1);
+        }
+
+        setInterval(actualizarRelojEntrada, 1000);
+        actualizarRelojEntrada();
+    </script>
+}

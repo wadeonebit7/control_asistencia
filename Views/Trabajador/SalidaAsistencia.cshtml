@@ -1,0 +1,131 @@
+﻿@{
+    ViewData["Title"] = "Registrar Salida";
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<style>
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+    }
+
+    .dashboard-card {
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(245, 158, 11, 0.15);
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-salida {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 14px 20px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+    }
+
+        .btn-salida:hover:not(:disabled) {
+            background: linear-gradient(135deg, #b45309 0%, #78350f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4);
+        }
+
+        .btn-salida:disabled {
+            background: #334155;
+            color: #94a3b8 !important;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+    .custom-checkbox-wrapper {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+        .custom-checkbox-wrapper:hover {
+            border-color: rgba(245, 158, 11, 0.5);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+    .form-check-input:checked {
+        background-color: #f59e0b;
+        border-color: #f59e0b;
+    }
+</style>
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 85vh;">
+    <div class="card dashboard-card p-4 w-100" style="max-width: 480px;">
+        <div class="card-body text-center">
+
+            <div class="mb-4">
+                <div class="d-inline-block p-4 rounded-circle mb-3" style="background: rgba(245, 158, 11, 0.1);">
+                    <i class="bi bi-box-arrow-right text-warning" style="font-size: 3.5rem;"></i>
+                </div>
+                <h3 class="text-white fw-bold mb-1">Registro de Salida</h3>
+                <p class="text-muted small">Finaliza tu jornada laboral</p>
+            </div>
+
+            <div class="mb-4">
+                <h1 class="text-warning fw-bold display-4 mb-0" id="relojSalida">--:--</h1>
+                <p class="text-secondary" id="fechaSalida">Cargando fecha...</p>
+            </div>
+
+            
+            <div>
+                <div class="custom-checkbox-wrapper d-flex align-items-center text-start mb-4" onclick="document.getElementById('checkSalida').click()">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input me-3" type="checkbox" id="checkSalida">
+                        <label class="form-check-label text-white fw-semibold" for="checkSalida" style="cursor: pointer;">
+                            Declaro y confirmo mi marcaje de SALIDA en este horario.
+                        </label>
+                    </div>
+                </div>
+
+                <button type="button" id="btnSalida" class="btn btn-salida w-100 text-white shadow-sm" disabled>
+                    <i class="bi bi-stop-circle-fill me-2"></i> Registrar Salida
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <a href="@Url.Action("Index", "Trabajador")" class="text-muted text-decoration-none small">
+                    <i class="bi bi-arrow-left me-1"></i> Volver al panel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const checkboxSalida = document.getElementById('checkSalida');
+        const btnSalida = document.getElementById('btnSalida');
+
+        checkboxSalida.addEventListener('change', function () {
+            btnSalida.disabled = !this.checked;
+        });
+
+        function actualizarRelojSalida() {
+            const ahora = new Date();
+            const horas = String(ahora.getHours()).padStart(2, '0');
+            const minutos = String(ahora.getMinutes()).padStart(2, '0');
+            const segundos = String(ahora.getSeconds()).padStart(2, '0');
+            document.getElementById('relojSalida').textContent = `${horas}:${minutos}:${segundos}`;
+
+            const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            let textoFecha = ahora.toLocaleDateString('es-CL', opcionesFecha);
+            document.getElementById('fechaSalida').textContent = textoFecha.charAt(0).toUpperCase() + textoFecha.slice(1);
+        }
+
+        setInterval(actualizarRelojSalida, 1000);
+        actualizarRelojSalida();
+    </script>
+}

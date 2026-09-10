@@ -25,6 +25,14 @@ namespace control_asistencia.Controllers
             return View();
         }
 
+       
+
+
+        public IActionResult LogoutAsistencia()
+        {
+            return View();
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(string correo, string password)
@@ -36,11 +44,12 @@ namespace control_asistencia.Controllers
                 return View("Index");
             }
 
-            // Consulta para buscar al usuario con sus relaciones de Personal y Rol
+            // Consulta ajustada: Como eliminamos el correo de la tabla Usuarios, 
+            // ahora accedemos a él a través de la relación u.Personal.Correo
             var usuario = await _context.Usuarios
                 .Include(u => u.Personal)
                     .ThenInclude(p => p.Rol)
-                .FirstOrDefaultAsync(u => u.Correo == correo && u.Password == password && u.Estado == true);
+                .FirstOrDefaultAsync(u => u.Personal.Correo == correo && u.Password == password && u.Estado == true);
 
             if (usuario != null)
             {
@@ -59,8 +68,8 @@ namespace control_asistencia.Controllers
                 else if (nombreRol == "EMPLEADO")
                 {
                     TempData["Mensaje"] = $"¡Hola {nombreCompleto}!";
-                    // return RedirectToAction("Index", "Asistencia");
-                    return View("Index");
+                     return RedirectToAction("Index", "Trabajador");
+                    
                 }
                 else if (nombreRol == "RRHH")
                 {
@@ -76,7 +85,7 @@ namespace control_asistencia.Controllers
 
             // Si las credenciales son incorrectas, recarga el formulario de Login con el error
             ViewBag.Error = "Correo o contraseña incorrectos.";
-            return View("Index");
+            return View("Logout");
         }
     }
 }

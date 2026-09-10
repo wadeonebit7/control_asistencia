@@ -25,27 +25,20 @@ namespace control_asistencia.Models
         [Column("status")]
         public string Status { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "La clave dinámica es obligatoria")]
+        // IMPORTANTE: Quitamos el [Required] y agregamos '?' al string porque ahora acepta NULL
         [StringLength(100, ErrorMessage = "La clave dinámica no puede superar los 100 caracteres")]
         [Column("clave_dinamica")]
-        public string ClaveDinamica { get; set; } = string.Empty;
+        public string? ClaveDinamica { get; set; }
 
-        [Required(ErrorMessage = "El correo es obligatorio")]
-        [EmailAddress(ErrorMessage = "Ingrese un correo electrónico válido")]
-        [StringLength(150, ErrorMessage = "El correo no puede superar los 150 caracteres")]
-        [Column("correo")]
-
-        public string Correo { get; set; } = string.Empty;
+        // ELIMINAMOS LA PROPIEDAD CORREO DE AQUÍ PORQUE YA NO EXISTE EN LA TABLA USUARIOS
 
         [Required(ErrorMessage = "La contraseña es obligatoria")]
         [StringLength(255, ErrorMessage = "La contraseña no puede superar los 255 caracteres")]
         [Column("password")]
-
         public string Password { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "La fecha de creación es obligatoria")]
         [Column("CreateAt")]
-
         public DateTime CreateAt { get; set; }
     }
 }
