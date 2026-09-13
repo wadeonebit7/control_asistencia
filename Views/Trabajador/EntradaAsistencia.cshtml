@@ -79,27 +79,27 @@
                 <p class="text-secondary" id="fechaEntrada">Cargando fecha...</p>
             </div>
 
-            
-            <div>
+            <!-- Formulario agregado que conecta con el Controlador de Trabajador -->
+            <form asp-controller="Trabajador" asp-action="GuardarEntrada" method="post">
+                @Html.AntiForgeryToken()
+
                 <div class="custom-checkbox-wrapper d-flex align-items-center text-start mb-4" onclick="document.getElementById('checkEntrada').click()">
                     <div class="form-check mb-0">
-                        <input class="form-check-input me-3" type="checkbox" id="checkEntrada">
+                        <input class="form-check-input me-3" type="checkbox" id="checkEntrada" name="confirmacion" value="true">
                         <label class="form-check-label text-white fw-semibold" for="checkEntrada" style="cursor: pointer;">
                             Declaro y confirmo mi marcaje de ENTRADA en este horario.
                         </label>
                     </div>
                 </div>
 
-                <button type="button" id="btnEntrada" class="btn btn-entrada w-100 text-white shadow-sm" disabled>
+                <!-- El botón ahora es type="submit" para enviar los datos por POST -->
+                <button type="submit" id="btnEntrada" class="btn btn-entrada w-100 text-white shadow-sm" disabled>
                     <i class="bi bi-play-circle-fill me-2"></i> Registrar Entrada
                 </button>
-            </div>
+            </form>
 
-            <div class="mt-4">
-                <a href="@Url.Action("Index", "Trabajador")" class="text-muted text-decoration-none small">
-                    <i class="bi bi-arrow-left me-1"></i> Volver al panel
-                </a>
-            </div>
+           
+
         </div>
     </div>
 </div>

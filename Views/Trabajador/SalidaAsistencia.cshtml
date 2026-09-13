@@ -79,21 +79,23 @@
                 <p class="text-secondary" id="fechaSalida">Cargando fecha...</p>
             </div>
 
-            
-            <div>
+            <!-- Formulario conectado a TrabajadorController -> GuardarSalida -->
+            <form asp-controller="Trabajador" asp-action="GuardarSalida" method="post">
+                @Html.AntiForgeryToken()
+
                 <div class="custom-checkbox-wrapper d-flex align-items-center text-start mb-4" onclick="document.getElementById('checkSalida').click()">
                     <div class="form-check mb-0">
-                        <input class="form-check-input me-3" type="checkbox" id="checkSalida">
+                        <input class="form-check-input me-3" type="checkbox" id="checkSalida" name="confirmacion" value="true">
                         <label class="form-check-label text-white fw-semibold" for="checkSalida" style="cursor: pointer;">
                             Declaro y confirmo mi marcaje de SALIDA en este horario.
                         </label>
                     </div>
                 </div>
 
-                <button type="button" id="btnSalida" class="btn btn-salida w-100 text-white shadow-sm" disabled>
+                <button type="submit" id="btnSalida" class="btn btn-salida w-100 text-white shadow-sm" disabled>
                     <i class="bi bi-stop-circle-fill me-2"></i> Registrar Salida
                 </button>
-            </div>
+            </form>
 
             <div class="mt-4">
                 <a href="@Url.Action("Index", "Trabajador")" class="text-muted text-decoration-none small">
@@ -103,6 +105,8 @@
         </div>
     </div>
 </div>
+
+
 
 @section Scripts {
     <script>
