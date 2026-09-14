@@ -17,5 +17,10 @@ namespace control_asistencia.Data
 
         public DbSet<habilitar_asistencia> habilitar_asistencia { get; set; }
 
+
+
+
+
+
     }
 }

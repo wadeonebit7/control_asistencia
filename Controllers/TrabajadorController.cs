@@ -39,6 +39,7 @@ namespace control_asistencia.Controllers
 
 
 
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
@@ -258,15 +259,11 @@ namespace control_asistencia.Controllers
         }
 
 
-    
 
 
 
 
-
-
-
-    [HttpPost]
+        [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GuardarSalida(bool confirmacion)
         {
@@ -303,42 +300,51 @@ namespace control_asistencia.Controllers
             var asistenciaExistente = await _context.Asistencia
                 .FirstOrDefaultAsync(a => a.IdUsuario == idUsuarioLogueado && a.IdHabilitarAsistencia == jornadaHabilitada.Id);
 
-            // REGLA DE NEGOCIO: Intentar marcar salida sin haber marcado entrada
             if (asistenciaExistente == null)
             {
                 TempData["Error"] = "No tienes un registro de entrada previo para hoy. Por favor, comunícate con Recursos Humanos.";
                 return RedirectToAction("LogoutAsistencia", "Usuarios");
             }
 
-            // REGLA DE NEGOCIO: Evitar marcajes duplicados de salida
             if (asistenciaExistente.EstadoSalida != "PENDIENTE")
             {
                 TempData["Error"] = "Tu salida ya fue registrada anteriormente hoy. Por seguridad, hemos cerrado esta sesión.";
                 return RedirectToAction("LogoutAsistencia", "Usuarios");
             }
 
-            // Evaluar si la salida es anticipada
             string estadoSalidaCalculado = "MARCADA";
-            if (horaActual < jornadaHabilitada.HoraSalida)
+
+            // Tolerancia de 10 minutos para no castigar salidas justas
+            TimeSpan tolerancia = new TimeSpan(0, 10, 0);
+            TimeSpan horaMinimaAceptable = jornadaHabilitada.HoraSalida.Subtract(tolerancia);
+
+            if (horaActual < horaMinimaAceptable)
             {
                 estadoSalidaCalculado = "ANTICIPADO";
             }
 
-            // Actualizamos el registro existente con los datos de salida
+            // ==========================================================
+            // NUEVA LÓGICA: CÁLCULO DE HORAS TOTALES
+            // ==========================================================
+            TimeSpan tiempoTotalEnEmpresa = horaActual.Subtract(asistenciaExistente.HoraEntradaReal);
+
             asistenciaExistente.HoraSalidaReal = horaActual;
             asistenciaExistente.EstadoSalida = estadoSalidaCalculado;
+
+            // Guardamos la diferencia en la base de datos (Si Recursos Humanos después define 
+            // que a las 'HorasTrabajadas' se le debe restar 1 hora de colación, se haría el descuento aquí)
+            asistenciaExistente.HorasReales = tiempoTotalEnEmpresa;
+            asistenciaExistente.HorasTrabajadas = tiempoTotalEnEmpresa;
 
             _context.Update(asistenciaExistente);
             await _context.SaveChangesAsync();
 
+            TempData.Remove("IdUsuario");
+            TempData.Remove("UsuarioLogueado");
+
             TempData["Mensaje"] = "¡Salida registrada correctamente!";
             return RedirectToAction("LogoutAsistencia", "Usuarios");
-
-
         }
-
-
-
 
 
 

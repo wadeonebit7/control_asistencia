@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Panel de Empleado - Control de Asistencia";
 
-    // Capturamos el mes actual de la URL para que el Select no se reinicie
     int mesSeleccionado = DateTime.Now.Month;
     if (Context.Request.Query.ContainsKey("mes"))
     {
@@ -12,7 +11,6 @@
 }
 
 @functions {
-    // Función para calcular exactamente a qué semana del mes pertenece una fecha (Lunes a Domingo)
     public int ObtenerSemanaDelMes(DateTime fecha)
     {
         var cal = System.Globalization.CultureInfo.InvariantCulture.Calendar;
@@ -59,12 +57,12 @@
             box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
         }
 
-    .custom-select-month {
+    .custom-select-month, .custom-input-field {
         background: rgba(15, 23, 42, 0.8) !important;
         border: 1px solid rgba(56, 189, 248, 0.2) !important;
         color: #f8fafc !important;
         border-radius: 10px;
-        padding: 8px 12px;
+        padding: 10px 14px;
     }
 
     .table-custom {
@@ -83,7 +81,6 @@
             vertical-align: middle;
         }
 
-    /* Estilo para la fila separadora de semanas */
     .semana-header {
         background: rgba(56, 189, 248, 0.08);
         border-top: 1px solid rgba(56, 189, 248, 0.2) !important;
@@ -99,6 +96,21 @@
         color: #38bdf8;
         font-weight: 800;
     }
+
+    .btn-submit-custom {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+        border: none;
+        border-radius: 10px;
+        padding: 12px 20px;
+        font-weight: 600;
+        color: #fff;
+        transition: all 0.3s ease;
+    }
+
+        .btn-submit-custom:hover {
+            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+            transform: translateY(-2px);
+        }
 </style>
 
 <div class="container py-4">
@@ -115,7 +127,7 @@
         </div>
     </div>
 
-    <!-- Navegación por Pestañas -->
+    <!-- Navegación por Pestañas (Incluye la nueva pestaña de Justificación) -->
     <ul class="nav nav-pills mb-4 gap-2" id="employeeTab" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active px-4 py-2" id="asistencia-tab" data-bs-toggle="pill" data-bs-target="#asistencia-pane" type="button" role="tab">
@@ -127,17 +139,19 @@
                 <i class="bi bi-ticket-perforated me-2"></i> Mi Código Dinámico
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link px-4 py-2" id="justificacion-tab" data-bs-toggle="pill" data-bs-target="#justificacion-pane" type="button" role="tab">
+                <i class="bi bi-file-earmark-text me-2"></i> Nueva Justificación
+            </button>
+        </li>
     </ul>
 
     <!-- Contenido de las Pestañas -->
     <div class="tab-content" id="employeeTabContent">
 
-
-
         <!-- PESTAÑA 1: ASISTENCIA -->
         <div class="tab-pane fade show active" id="asistencia-pane" role="tabpanel">
             <div class="dashboard-card p-4">
-
                 <div class="row align-items-center mb-4">
                     <div class="col-md-4">
                         <h5 class="text-white mb-0"><i class="bi bi-clock-history text-info me-2"></i>Historial de Asistencia</h5>
@@ -145,7 +159,6 @@
                     <div class="col-md-4 offset-md-4">
                         <div class="d-flex align-items-center gap-2">
                             <label class="text-muted small text-nowrap">Filtrar Mes:</label>
-
                             <select class="form-select custom-select-month form-select-sm" id="selectMes">
                                 <option value="9" selected="@(mesSeleccionado == 9 ? "selected" : null)">Septiembre 2026</option>
                                 <option value="8" selected="@(mesSeleccionado == 8 ? "selected" : null)">Agosto 2026</option>
@@ -156,7 +169,6 @@
                     </div>
                 </div>
 
-                <!-- Tabla conectada a la Base de Datos con agrupación -->
                 <div class="table-responsive">
                     <table class="table table-custom align-middle">
                         <thead>
@@ -172,21 +184,17 @@
                         <tbody>
                             @if (Model != null && Model.Any())
                             {
-                                // Agrupamos la lista completa basándonos en nuestra función de semanas
-                                // y ordenamos para que la semana más reciente (ej: Semana 4) aparezca arriba
                                 var gruposPorSemana = Model.GroupBy(a => ObtenerSemanaDelMes(a.CreateAt))
-                                                           .OrderByDescending(g => g.Key);
+                                                         .OrderByDescending(g => g.Key);
 
                                 foreach (var grupo in gruposPorSemana)
                                 {
-                                    <!-- FILA AGRUPADORA DE SEMANA -->
                                     <tr class="semana-header">
                                         <td colspan="6" class="text-info fw-bold py-2">
                                             <i class="bi bi-calendar3-week me-2"></i> Semana @grupo.Key
                                         </td>
                                     </tr>
 
-                                    <!-- REGISTROS DE ESA SEMANA -->
                                     foreach (var item in grupo)
                                     {
                                         TimeSpan horasTrabajadas = item.HoraSalidaReal.Subtract(item.HoraEntradaReal);
@@ -198,8 +206,6 @@
                                             <td>@item.HoraEntradaReal</td>
                                             <td>@item.HoraSalidaReal</td>
                                             <td class="fw-semibold text-info">@textoHoras</td>
-
-                                            <!-- Estado Entrada -->
                                             <td>
                                                 @if (item.EstadoEntrada == "MARCADA")
                                                 {
@@ -218,8 +224,6 @@
                                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">@item.EstadoEntrada</span>
                                                 }
                                             </td>
-
-                                            <!-- Estado Salida -->
                                             <td>
                                                 @if (item.EstadoSalida == "MARCADA")
                                                 {
@@ -247,7 +251,6 @@
                         </tbody>
                     </table>
                 </div>
-
             </div>
         </div>
 
@@ -267,6 +270,44 @@
                 <button class="btn btn-outline-info btn-sm px-4 rounded-pill">
                     <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Clave
                 </button>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 3: NUEVA SECCIÓN DE JUSTIFICACIÓN -->
+        <div class="tab-pane fade" id="justificacion-pane" role="tabpanel">
+            <div class="dashboard-card p-4" style="max-width: 650px; margin: 0 auto;">
+                <div class="text-center mb-4">
+                    <i class="bi bi-file-earmark-medical text-info" style="font-size: 2.5rem;"></i>
+                    <h4 class="text-white mt-2">Enviar Solicitud de Justificación</h4>
+                    <p class="text-muted small">Selecciona el tipo de trámite y adjunta el respaldo correspondiente.</p>
+                </div>
+
+                <form asp-controller="Trabajador" asp-action="CrearSolicitud" method="post" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-semibold">Tipo de Justificación</label>
+                        <select name="tipoSolicitud" class="form-select custom-input-field" required>
+                            <option value="" disabled selected>-- Seleccione una opción --</option>
+                            <option value="LICENCIA_MEDICA">Licencia Médica</option>
+                            <option value="AJUSTE_ASISTENCIA">Permiso Administrativo / Ajuste</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-semibold">Motivo o Detalle</label>
+                        <textarea name="motivo" class="form-control custom-input-field" rows="3" placeholder="Explique brevemente el motivo..." required></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted small fw-semibold">Documento de Respaldo (PDF o Imagen)</label>
+                        <input type="file" name="documentoRespaldo" class="form-control custom-input-field" accept=".pdf,.jpg,.jpeg,.png" required />
+                    </div>
+
+                    <button type="submit" class="btn btn-submit-custom w-100 shadow-sm">
+                        <i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos
+                    </button>
+                </form>
             </div>
         </div>
 

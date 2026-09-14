@@ -41,6 +41,6 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=USUARIOS}/{action=LogoutAsistencia}/{id?}");
+    pattern: "{controller=USUARIOS}/{action=Logout}/{id?}");
 
 app.Run();
