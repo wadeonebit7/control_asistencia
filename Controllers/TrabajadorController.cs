@@ -4,19 +4,37 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Tesseract;
+
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
+using System.Text.RegularExpressions;
+using PdfiumViewer;
+using System.Drawing.Imaging;
+
 
 namespace control_asistencia.Controllers
 {
     public class TrabajadorController : Controller
     {
-        private readonly ApplicationDbContext _context;
 
-        // Inyección de dependencias para conectar con la base de datos
-        public TrabajadorController(ApplicationDbContext context)
+        private readonly ApplicationDbContext _context;
+        private readonly IWebHostEnvironment _env;
+
+        // Inyección de dependencias para conectar con la base de datos y obtener rutas físicas
+        public TrabajadorController(ApplicationDbContext context, IWebHostEnvironment env)
         {
             _context = context;
+            _env = env;
         }
+
+
+
+
+
+
 
         [HttpGet]
         public async Task<IActionResult> Index(int? mes)
@@ -36,6 +54,7 @@ namespace control_asistencia.Controllers
             // 4. Mandamos los datos a la vista
             return View(registrosAsistencia);
         }
+
 
 
 
@@ -78,7 +97,7 @@ namespace control_asistencia.Controllers
                 .FirstOrDefaultAsync(a => a.IdUsuario == usuario.Id && a.IdHabilitarAsistencia == jornadaHabilitada.Id);
 
             // =======================================================
-            // 2. ENRUTAMIENTO 100% DINÁMICO BASADO EN LA TABLA
+            // 2. ENRUTAMIENTO CON HORA FIJA DE CAMBIO A LAS 14:00 (O 2 PM)
             // =======================================================
             TimeSpan horaEntradaDB = jornadaHabilitada.HoraEntrada;
             TimeSpan horaSalidaDB = jornadaHabilitada.HoraSalida;
@@ -90,9 +109,8 @@ namespace control_asistencia.Controllers
             TimeSpan cierreSistema = horaSalidaDB.Add(new TimeSpan(3, 0, 0));
             if (cierreSistema > new TimeSpan(23, 59, 59)) cierreSistema = new TimeSpan(23, 59, 59);
 
-            // Punto medio exacto del turno configurado para dividir Entrada y Salida
-            long ticksMitad = (horaEntradaDB.Ticks + horaSalidaDB.Ticks) / 2;
-            TimeSpan cambioTurno = new TimeSpan(ticksMitad);
+            // Hora fija establecida en las 14:00 hrs (2 PM) para activar el modo salida
+            TimeSpan cambioTurnoFijo = new TimeSpan(14, 0, 0);
 
             // Validar si está fuera del horario operativo calculado
             if (horaActual < inicioSistema || horaActual > cierreSistema)
@@ -101,10 +119,10 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Usuarios");
             }
 
-            // 3. Evaluar si corresponde a Salida o Entrada según la mitad exacta del turno dinámico
-            if (horaActual >= cambioTurno && horaActual <= cierreSistema)
+            // 3. Evaluar si corresponde a Salida o Entrada usando la hora fija de las 14:00 hrs
+            if (horaActual >= cambioTurnoFijo && horaActual <= cierreSistema)
             {
-                // === MODO SALIDA DINÁMICO ===
+                // === MODO SALIDA (A partir de las 14:00 hrs) ===
 
                 if (asistenciaExistente == null || asistenciaExistente.EstadoEntrada == "PENDIENTE")
                 {
@@ -124,11 +142,11 @@ namespace control_asistencia.Controllers
             }
             else
             {
-                // === MODO ENTRADA DINÁMICO ===
+                // === MODO ENTRADA (Hasta antes de las 14:00 hrs) ===
 
                 if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
                 {
-                    TempData["Error"] = $"Ya registraste tu entrada. El cambio a modo salida será a partir de las {cambioTurno:hh\\:mm} hrs.";
+                    TempData["Error"] = "Ya registraste tu entrada. El cambio a modo salida será a partir de las 14:00 hrs.";
                     return RedirectToAction("LogoutAsistencia", "Usuarios");
                 }
 
@@ -155,15 +173,11 @@ namespace control_asistencia.Controllers
 
 
 
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GuardarEntrada(bool confirmacion)
         {
-
-
-
-
-
             // 1. Validar que el empleado haya marcado el checkbox
             if (!confirmacion)
             {
@@ -175,21 +189,14 @@ namespace control_asistencia.Controllers
             int idUsuarioLogueado = 0;
             if (TempData["IdUsuario"] != null)
             {
-                // Extraemos el valor y lo convertimos a entero
                 idUsuarioLogueado = Convert.ToInt32(TempData["IdUsuario"]);
-
-                // Mantener el dato vivo por si necesita marcar la salida más tarde
                 TempData.Keep("IdUsuario");
             }
             else
             {
-                // Si el TempData está vacío (la sesión se perdió o expiró)
                 TempData["Error"] = "Su sesión ha expirado. Por favor, vuelva a ingresar su ticket.";
-                // Cambia "Usuarios" por el nombre del controlador donde esté tu vista de login
                 return RedirectToAction("LogoutAsistencia", "Usuarios");
             }
-
-
 
             // 3. Obtenemos la fecha actual y la hora exacta del marcaje
             var fechaHoy = DateTime.Now.Date;
@@ -212,14 +219,20 @@ namespace control_asistencia.Controllers
             if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
             {
                 TempData["Error"] = "Usted ya registró su entrada el día de hoy.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios"); 
+                return RedirectToAction("LogoutAsistencia", "Usuarios");
             }
 
-
-
-            // 6. Evaluamos si llegó atrasado comparando su hora con la hora límite (ej: 09:30:00)
+            // ==========================================================
+            // 6. EVALUACIÓN DE ENTRADA CON 15 MINUTOS DE TOLERANCIA
+            // ==========================================================
             string estadoEntradaCalculado = "MARCADA";
-            if (horaActual > jornadaHabilitada.HoraEntrada)
+
+            // Sumamos 15 minutos a la hora de entrada oficial configurada por administración
+            TimeSpan toleranciaAtraso = new TimeSpan(0, 15, 0);
+            TimeSpan horaMaximaSinAtraso = jornadaHabilitada.HoraEntrada.Add(toleranciaAtraso);
+
+            // Si llega después de los 15 minutos de gracia, se marca como ATRASADO
+            if (horaActual > horaMaximaSinAtraso)
             {
                 estadoEntradaCalculado = "ATRASADO";
             }
@@ -227,7 +240,6 @@ namespace control_asistencia.Controllers
             // 7. Hacemos el INSERT o UPDATE en la tabla Asistencia
             if (asistenciaExistente == null)
             {
-                // Si no hay registro previo, creamos la nueva fila
                 var nuevaAsistencia = new Asistencia
                 {
                     Estado = true,
@@ -237,6 +249,8 @@ namespace control_asistencia.Controllers
                     HoraSalidaReal = TimeSpan.Zero,
                     EstadoEntrada = estadoEntradaCalculado,
                     EstadoSalida = "PENDIENTE",
+                    HorasReales = null,
+                    HorasTrabajadas = null,
                     CreateAt = DateTime.Now
                 };
 
@@ -244,7 +258,6 @@ namespace control_asistencia.Controllers
             }
             else
             {
-                // Si ya existía una fila creada por el sistema, solo la actualizamos
                 asistenciaExistente.HoraEntradaReal = horaActual;
                 asistenciaExistente.EstadoEntrada = estadoEntradaCalculado;
                 _context.Update(asistenciaExistente);
@@ -253,11 +266,8 @@ namespace control_asistencia.Controllers
             await _context.SaveChangesAsync();
 
             TempData["Mensaje"] = "¡Entrada registrada correctamente!";
-
-            // Lo redirigimos a su Dashboard para que vea su nueva marca en la tabla
             return RedirectToAction("LogoutAsistencia", "Usuarios");
         }
-
 
 
 
@@ -315,7 +325,7 @@ namespace control_asistencia.Controllers
             string estadoSalidaCalculado = "MARCADA";
 
             // Tolerancia de 10 minutos para no castigar salidas justas
-            TimeSpan tolerancia = new TimeSpan(0, 10, 0);
+            TimeSpan tolerancia = new TimeSpan(0, 15, 0);
             TimeSpan horaMinimaAceptable = jornadaHabilitada.HoraSalida.Subtract(tolerancia);
 
             if (horaActual < horaMinimaAceptable)
@@ -345,6 +355,157 @@ namespace control_asistencia.Controllers
             TempData["Mensaje"] = "¡Salida registrada correctamente!";
             return RedirectToAction("LogoutAsistencia", "Usuarios");
         }
+
+
+
+
+
+
+        [HttpPost]
+        public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento)
+        {
+            if (documento == null || documento.Length == 0) return BadRequest("Archivo vacío.");
+
+            var tempPath = Path.GetTempFileName();
+            using (var stream = new FileStream(tempPath, FileMode.Create))
+            {
+                await documento.CopyToAsync(stream);
+            }
+
+            string textoExtraido = "";
+            string tessdataPath = Path.Combine(_env.ContentRootPath, "tessdata");
+
+            try
+            {
+                string extension = Path.GetExtension(documento.FileName).ToLower();
+
+                using (var engine = new TesseractEngine(tessdataPath, "spa", EngineMode.Default))
+                {
+                    engine.SetVariable("tessedit_pageseg_mode", "3");
+
+                    if (extension == ".pdf")
+                    {
+                        // Leer todas las páginas del PDF usando PdfiumViewer
+                        using (var pdfDocument = PdfiumViewer.PdfDocument.Load(tempPath))
+                        {
+                            for (int i = 0; i < pdfDocument.PageCount; i++)
+                            {
+                                using (var image = pdfDocument.Render(i, 300, 300, PdfiumViewer.PdfRenderFlags.CorrectFromDpi))
+                                {
+                                    string pageTempPath = Path.GetTempFileName() + ".png";
+                                    image.Save(pageTempPath, System.Drawing.Imaging.ImageFormat.Png);
+
+                                    using (var img = Pix.LoadFromFile(pageTempPath))
+                                    {
+                                        using (var page = engine.Process(img))
+                                        {
+                                            textoExtraido += "\n" + page.GetText();
+                                        }
+                                    }
+                                    System.IO.File.Delete(pageTempPath);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Si es una imagen normal (JPEG / PNG)
+                        using (var img = Pix.LoadFromFile(tempPath))
+                        {
+                            using (var page = engine.Process(img))
+                            {
+                                textoExtraido = page.GetText();
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
+                // Esto imprimirá el error real en la ventana de Salida (Output) de Visual Studio
+                System.Diagnostics.Debug.WriteLine("EXCEPCIÓN OCR: " + ex.ToString());
+                return StatusCode(500, $"Error OCR: {ex.Message}");
+            }
+
+            if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
+
+            // =========================================================================
+            // EXPRESIONES REGULARES ULTRATOLERANTES
+            // =========================================================================
+
+            var folioMatch = Regex.Match(textoExtraido, @"Folio\s*Licencia.*?([0-9]{5,}[-.]?[0-9Kk])", RegexOptions.IgnoreCase);
+            string folioStr = folioMatch.Success ? folioMatch.Groups[1].Value.Replace(".", "-").Trim().ToUpper() : "Revisar manual";
+
+            var profesionalMatch = Regex.Match(textoExtraido, @"Profesional.*?([A-Za-zÑñÁÉÍÓÚáéíóú\s\.]+?)(?=\r|\n|Entidad|$)", RegexOptions.IgnoreCase);
+            string profStr = profesionalMatch.Success ? profesionalMatch.Groups[1].Value.Trim() : "Revisar manual";
+
+            var diasMatch = Regex.Match(textoExtraido, @"N[*°ºo\W]*\s*de\s*d[ií]as.*?(\d{1,3})", RegexOptions.IgnoreCase);
+            string diasStr = diasMatch.Success ? diasMatch.Groups[1].Value.Trim() : "Revisar manual";
+
+            var fechaOtorgamientoMatch = Regex.Match(textoExtraido, @"Fecha de Emisi[óo]n.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
+            string fechaOtorStr = "Revisar manual";
+            if (fechaOtorgamientoMatch.Success)
+            {
+                fechaOtorStr = $"{fechaOtorgamientoMatch.Groups[1].Value}-{fechaOtorgamientoMatch.Groups[2].Value}-{fechaOtorgamientoMatch.Groups[3].Value}";
+            }
+
+            var fechaInicioMatch = Regex.Match(textoExtraido, @"Inicio de Reposo.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
+            string fechaInicioStr = "Revisar manual";
+            if (fechaInicioMatch.Success)
+            {
+                fechaInicioStr = $"{fechaInicioMatch.Groups[1].Value}-{fechaInicioMatch.Groups[2].Value}-{fechaInicioMatch.Groups[3].Value}";
+            }
+
+            var resultado = new
+            {
+                folio = folioStr,
+                diasReposo = diasStr,
+                profesional = profStr,
+                fechaInicio = fechaInicioStr,
+                fechaOtorgamiento = fechaOtorStr,
+                tipificacion = "TIPO_1"
+            };
+
+            return Json(resultado);
+        }
+
+
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerClaveDinamicaActual()
+        {
+            int idUsuarioLogueado = 0;
+            if (TempData["IdUsuario"] != null)
+            {
+                idUsuarioLogueado = Convert.ToInt32(TempData["IdUsuario"]);
+                TempData.Keep("IdUsuario");
+            }
+            else
+            {
+                idUsuarioLogueado = 1; // Fallback para pruebas
+            }
+
+            var usuario = await _context.Usuarios
+                .Include(u => u.Personal)
+                .FirstOrDefaultAsync(u => u.Id == idUsuarioLogueado);
+
+            if (usuario == null || string.IsNullOrEmpty(usuario.ClaveDinamica))
+            {
+                return Json(new { claveDinamica = "CARGANDO", segundosRestantes = 60 });
+            }
+
+            // Calcular cuántos segundos faltan exactamente para que termine el minuto actual en el servidor
+            var now = DateTime.Now;
+            int segundosRestantes = 60 - now.Second;
+
+            return Json(new
+            {
+                claveDinamica = usuario.ClaveDinamica,
+                segundosRestantes = segundosRestantes
+            });
+        }
+
 
 
 

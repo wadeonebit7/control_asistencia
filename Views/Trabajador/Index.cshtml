@@ -65,6 +65,18 @@
         padding: 10px 14px;
     }
 
+        .custom-input-field:focus {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.25) !important;
+        }
+
+        .custom-input-field[readonly] {
+            background: rgba(15, 23, 42, 0.4) !important;
+            color: #cbd5e1 !important;
+            cursor: not-allowed;
+            border-style: dashed !important;
+        }
+
     .table-custom {
         color: #e2e8f0;
         background: transparent;
@@ -111,10 +123,40 @@
             background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
             transform: translateY(-2px);
         }
+
+    .spin-icon {
+        animation: spin 1.5s linear infinite;
+        display: inline-block;
+    }
+
+    @@keyframes spin {
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .highlight-ocr {
+        animation: pulseOcr 2s ease-out;
+        border-color: #10b981 !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+    }
+
+    @@keyframes pulseOcr {
+        0% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+
+        70% {
+            box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+    }
 </style>
 
 <div class="container py-4">
-    <!-- Cabecera de bienvenida -->
     <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
         <div>
             <h3 class="text-white fw-bold mb-1">¡Hola, @TempData["UsuarioLogueado"]!</h3>
@@ -127,30 +169,52 @@
         </div>
     </div>
 
-    <!-- Navegación por Pestañas (Incluye la nueva pestaña de Justificación) -->
+    <!-- Navegación -->
     <ul class="nav nav-pills mb-4 gap-2" id="employeeTab" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active px-4 py-2" id="asistencia-tab" data-bs-toggle="pill" data-bs-target="#asistencia-pane" type="button" role="tab">
-                <i class="bi bi-calendar-check me-2"></i> Mi Asistencia
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link px-4 py-2" id="codigo-tab" data-bs-toggle="pill" data-bs-target="#codigo-pane" type="button" role="tab">
+            <button class="nav-link active px-4 py-2" id="codigo-tab" data-bs-toggle="pill" data-bs-target="#codigo-pane" type="button" role="tab" aria-selected="true">
                 <i class="bi bi-ticket-perforated me-2"></i> Mi Código Dinámico
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link px-4 py-2" id="justificacion-tab" data-bs-toggle="pill" data-bs-target="#justificacion-pane" type="button" role="tab">
+            <button class="nav-link px-4 py-2" id="asistencia-tab" data-bs-toggle="pill" data-bs-target="#asistencia-pane" type="button" role="tab" aria-selected="false">
+                <i class="bi bi-calendar-check me-2"></i> Mi Asistencia
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link px-4 py-2" id="justificacion-tab" data-bs-toggle="pill" data-bs-target="#justificacion-pane" type="button" role="tab" aria-selected="false">
                 <i class="bi bi-file-earmark-text me-2"></i> Nueva Justificación
             </button>
         </li>
     </ul>
 
-    <!-- Contenido de las Pestañas -->
     <div class="tab-content" id="employeeTabContent">
 
-        <!-- PESTAÑA 1: ASISTENCIA -->
-        <div class="tab-pane fade show active" id="asistencia-pane" role="tabpanel">
+        <!-- PESTAÑA 1: CÓDIGO DINÁMICO -->
+        <div class="tab-pane fade show active" id="codigo-pane" role="tabpanel">
+            <div class="dashboard-card p-5 text-center" style="max-width: 600px; margin: 0 auto;">
+                <div class="mb-3">
+                    <i class="bi bi-key text-info" style="font-size: 3rem;"></i>
+                </div>
+                <h4 class="text-white mb-2">Tu Clave Dinámica de Acceso</h4>
+                <p class="text-muted small mb-4">Usa este código único para fichar o autenticarte de forma rápida.</p>
+
+                <div class="dynamic-code-box py-3 px-4 mb-4 shadow-inner" id="displayCode">
+                    CARGANDO...
+                </div>
+
+                <!-- Barra de tiempo -->
+                <div class="px-4">
+                    <div class="progress" style="height: 6px; background-color: rgba(15, 23, 42, 0.5); border-radius: 10px;">
+                        <div id="codeProgressBar" class="progress-bar bg-info" role="progressbar" style="width: 100%; transition: width 1s linear;"></div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="codeTimerText">Sincronizando con servidor...</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 2: ASISTENCIA -->
+        <div class="tab-pane fade" id="asistencia-pane" role="tabpanel">
             <div class="dashboard-card p-4">
                 <div class="row align-items-center mb-4">
                     <div class="col-md-4">
@@ -194,7 +258,6 @@
                                             <i class="bi bi-calendar3-week me-2"></i> Semana @grupo.Key
                                         </td>
                                     </tr>
-
                                     foreach (var item in grupo)
                                     {
                                         TimeSpan horasTrabajadas = item.HoraSalidaReal.Subtract(item.HoraEntradaReal);
@@ -254,60 +317,104 @@
             </div>
         </div>
 
-        <!-- PESTAÑA 2: CÓDIGO DINÁMICO -->
-        <div class="tab-pane fade" id="codigo-pane" role="tabpanel">
-            <div class="dashboard-card p-5 text-center" style="max-width: 600px; margin: 0 auto;">
-                <div class="mb-3">
-                    <i class="bi bi-key text-info" style="font-size: 3rem;"></i>
-                </div>
-                <h4 class="text-white mb-2">Tu Clave Dinámica de Acceso</h4>
-                <p class="text-muted small mb-4">Usa este código único para fichar o autenticarte de forma rápida.</p>
-
-                <div class="dynamic-code-box py-3 px-4 mb-4 shadow-inner">
-                    CAMI123
-                </div>
-
-                <button class="btn btn-outline-info btn-sm px-4 rounded-pill">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Clave
-                </button>
-            </div>
-        </div>
-
         <!-- PESTAÑA 3: NUEVA SECCIÓN DE JUSTIFICACIÓN -->
         <div class="tab-pane fade" id="justificacion-pane" role="tabpanel">
-            <div class="dashboard-card p-4" style="max-width: 650px; margin: 0 auto;">
-                <div class="text-center mb-4">
-                    <i class="bi bi-file-earmark-medical text-info" style="font-size: 2.5rem;"></i>
-                    <h4 class="text-white mt-2">Enviar Solicitud de Justificación</h4>
-                    <p class="text-muted small">Selecciona el tipo de trámite y adjunta el respaldo correspondiente.</p>
+            <div class="row">
+                <!-- Columna Izquierda: Formulario Dinámico -->
+                <div class="col-lg-6 mb-4">
+                    <div class="dashboard-card p-4 h-100">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-file-earmark-medical text-info" style="font-size: 2.5rem;"></i>
+                            <h4 class="text-white mt-2">Enviar Solicitud</h4>
+                            <p class="text-muted small">Selecciona el tipo de trámite y adjunta el respaldo.</p>
+                        </div>
+
+                        <form asp-controller="Trabajador" asp-action="CrearSolicitud" method="post" enctype="multipart/form-data" id="formJustificacion">
+                            @Html.AntiForgeryToken()
+
+                            <!-- Tipo de Justificación -->
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-semibold">Tipo de Justificación</label>
+                                <select id="tipoSolicitud" name="tipoSolicitud" class="form-select custom-input-field" required>
+                                    <option value="" disabled selected>-- Seleccione una opción --</option>
+                                    <option value="LICENCIA_MEDICA">Licencia Médica</option>
+                                    <option value="AJUSTE_ASISTENCIA">Permiso Administrativo / Ajuste</option>
+                                </select>
+                            </div>
+
+                            <!-- Documento de Respaldo -->
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-semibold">Documento de Respaldo</label>
+                                <input type="file" id="fileRespaldo" name="documentoRespaldo" class="form-control custom-input-field" accept=".pdf,.jpg,.jpeg,.png" required disabled />
+                                <small class="text-info mt-1 d-none" id="ocrLoadingText"><i class="bi bi-arrow-repeat spin-icon me-1"></i> Analizando documento para extraer datos...</small>
+                            </div>
+
+                            <!-- BLOQUE CONDICIONAL: Licencia Médica -->
+                            <div id="camposLicencia" class="d-none mb-3 p-3 shadow-sm" style="background: rgba(0,0,0,0.15); border-radius: 10px; border: 1px solid rgba(56,189,248,0.2);">
+                                <h6 class="text-info small mb-3"><i class="bi bi-clipboard2-pulse me-1"></i>Detalles Extraídos de Licencia</h6>
+                                <p class="small text-muted mb-3" style="font-size: 0.8rem;">Estos datos se completan automáticamente al cargar tu documento. Verifica que sean correctos.</p>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Folio Documento</label>
+                                        <input type="text" id="folio" name="folio" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Profesional Emisor</label>
+                                        <input type="text" id="profesional" name="profesional" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Fecha Otorgamiento</label>
+                                        <input type="text" id="fechaOtorgamiento" name="fechaOtorgamiento" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Fecha de Inicio</label>
+                                        <input type="text" id="fechaInicio" name="fechaInicio" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Días de Reposo</label>
+                                        <input type="text" id="diasReposo" name="diasReposo" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label text-muted small fw-semibold">Tipificación</label>
+                                        <input type="text" id="tipificacion" name="tipificacion" class="form-control custom-input-field form-control-sm" readonly placeholder="Esperando documento..." />
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Fin Bloque Licencia Médica -->
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-semibold">Motivo o Detalle Adicional</label>
+                                <textarea id="motivoTextarea" name="motivo" class="form-control custom-input-field" rows="2" placeholder="Agregue información extra si es necesario..." required></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-submit-custom w-100 shadow-sm" id="btnSubmit">
+                                <i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
-                <form asp-controller="Trabajador" asp-action="CrearSolicitud" method="post" enctype="multipart/form-data">
-                    @Html.AntiForgeryToken()
-
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Tipo de Justificación</label>
-                        <select name="tipoSolicitud" class="form-select custom-input-field" required>
-                            <option value="" disabled selected>-- Seleccione una opción --</option>
-                            <option value="LICENCIA_MEDICA">Licencia Médica</option>
-                            <option value="AJUSTE_ASISTENCIA">Permiso Administrativo / Ajuste</option>
-                        </select>
+                <!-- Columna Derecha: Solo Preview (Visor Documento) -->
+                <div class="col-lg-6 mb-4">
+                    <div class="dashboard-card p-3 h-100" id="previewContainer">
+                        <label class="text-muted small fw-semibold mb-3 d-flex align-items-center">
+                            <i class="bi bi-file-earmark-image text-info me-2 fs-5"></i> Vista Previa del Documento
+                        </label>
+                        <div class="text-center text-muted" id="emptyPreviewState" style="padding-top: 25%;">
+                            <i class="bi bi-cloud-upload fs-1 mb-2"></i>
+                            <p class="small">El documento adjunto se visualizará aquí.</p>
+                        </div>
+                        <iframe id="pdfViewer" style="width: 100%; height: 85%; border: none; border-radius: 8px; background: #fff;" class="d-none"></iframe>
+                        <img id="imgViewer" style="width: 100%; max-height: 85%; object-fit: contain; border-radius: 8px;" class="d-none" />
                     </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Motivo o Detalle</label>
-                        <textarea name="motivo" class="form-control custom-input-field" rows="3" placeholder="Explique brevemente el motivo..." required></textarea>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label text-muted small fw-semibold">Documento de Respaldo (PDF o Imagen)</label>
-                        <input type="file" name="documentoRespaldo" class="form-control custom-input-field" accept=".pdf,.jpg,.jpeg,.png" required />
-                    </div>
-
-                    <button type="submit" class="btn btn-submit-custom w-100 shadow-sm">
-                        <i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos
-                    </button>
-                </form>
+                </div>
             </div>
         </div>
 
@@ -316,9 +423,142 @@
 
 @section Scripts {
     <script>
+        // 1. Selector de Mes
         document.getElementById('selectMes').addEventListener('change', function() {
             let mesSeleccionado = this.value;
             window.location.href = `/Trabajador/Index?mes=${mesSeleccionado}`;
+        });
+
+        // 2. Control Sincronizado Milimétricamente de la Clave Dinámica con el Backend
+        const progressBar = document.getElementById('codeProgressBar');
+        const timerText = document.getElementById('codeTimerText');
+        const codeDisplay = document.getElementById('displayCode');
+
+        let timeLeft = 60;       // Ciclo completo de 60 segundos (alineado al evento de MySQL)
+        let totalCycle = 60;
+
+        async function refrescarClaveDinamicaDesdeServidor() {
+            try {
+                let response = await fetch('/Trabajador/ObtenerClaveDinamicaActual');
+                if (response.ok) {
+                    let data = await response.json();
+                    codeDisplay.innerText = data.claveDinamica;
+
+                    // Sincronizamos el tiempo exacto que le queda al minuto en el servidor
+                    if (data.segundosRestantes !== undefined) {
+                        timeLeft = data.segundosRestantes;
+                    }
+                }
+            } catch (error) {
+                console.error("No se pudo sincronizar la clave dinámica:", error);
+            }
+        }
+
+        // Cargar inmediatamente al iniciar la vista y calibrar reloj
+        refrescarClaveDinamicaDesdeServidor();
+
+        function updateTimer() {
+            timeLeft--;
+
+            // Si el tiempo llega a 0 o menos, recargamos la clave del servidor y reiniciamos el ciclo
+            if (timeLeft <= 0) {
+                refrescarClaveDinamicaDesdeServidor();
+                timeLeft = totalCycle;
+            }
+
+            let percentage = (timeLeft / totalCycle) * 100;
+            progressBar.style.width = percentage + '%';
+            timerText.innerText = `Actualizando en ${timeLeft}s...`;
+
+            if(timeLeft <= 10) {
+                progressBar.classList.remove('bg-info');
+                progressBar.classList.add('bg-danger');
+            } else {
+                progressBar.classList.remove('bg-danger');
+                progressBar.classList.add('bg-info');
+            }
+        }
+
+        // Ejecutar cada 1 segundo de manera fluida
+        setInterval(updateTimer, 1000);
+
+        // 3. Lógica Formulario (Habilitar input archivo y mostrar campos según tipo)
+        const selectTipoSolicitud = document.getElementById('tipoSolicitud');
+        const camposLicencia = document.getElementById('camposLicencia');
+        const fileInput = document.getElementById('fileRespaldo');
+
+        selectTipoSolicitud.addEventListener('change', function() {
+            fileInput.removeAttribute('disabled');
+
+            if (this.value === 'LICENCIA_MEDICA') {
+                camposLicencia.classList.remove('d-none');
+            } else {
+                camposLicencia.classList.add('d-none');
+            }
+        });
+
+        // 4. Lógica de Archivo: Visualizador y Llamada Real Backend (OCR)
+        const pdfViewer = document.getElementById('pdfViewer');
+        const imgViewer = document.getElementById('imgViewer');
+        const emptyState = document.getElementById('emptyPreviewState');
+        const loadingText = document.getElementById('ocrLoadingText');
+
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (!file) return;
+
+            emptyState.classList.add('d-none');
+            pdfViewer.classList.add('d-none');
+            imgViewer.classList.add('d-none');
+
+            const fileURL = URL.createObjectURL(file);
+            if (file.type === 'application/pdf') {
+                pdfViewer.src = fileURL;
+                pdfViewer.classList.remove('d-none');
+            } else if (file.type.startsWith('image/')) {
+                imgViewer.src = fileURL;
+                imgViewer.classList.remove('d-none');
+            }
+
+            if (selectTipoSolicitud.value === 'LICENCIA_MEDICA') {
+                loadingText.classList.remove('d-none');
+
+                let formData = new FormData();
+                formData.append("documento", file);
+
+                fetch('/Trabajador/ExtraerDatosLicencia', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if(!response.ok) throw new Error("Error procesando documento");
+                    return response.json();
+                })
+                .then(data => {
+                    loadingText.classList.add('d-none');
+
+                    const fieldsMap = [
+                        { id: 'folio', val: data.folio || 'Revisar manual' },
+                        { id: 'profesional', val: data.profesional || 'Revisar manual' },
+                        { id: 'fechaOtorgamiento', val: data.fechaOtorgamiento || 'Revisar manual' },
+                        { id: 'fechaInicio', val: data.fechaInicio || 'Revisar manual' },
+                        { id: 'diasReposo', val: data.diasReposo || 'Revisar manual' },
+                        { id: 'tipificacion', val: data.tipificacion || 'TIPO_1' }
+                    ];
+
+                    fieldsMap.forEach(field => {
+                        let el = document.getElementById(field.id);
+                        el.value = field.val;
+                        el.classList.add('highlight-ocr');
+                        setTimeout(() => el.classList.remove('highlight-ocr'), 2000);
+                    });
+                })
+                .catch(error => {
+                    console.error("Error OCR Backend:", error);
+                    loadingText.classList.add('d-none');
+                    document.getElementById('folio').value = "Error al leer documento.";
+                });
+            }
         });
     </script>
 }
