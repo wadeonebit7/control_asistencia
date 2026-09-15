@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace control_asistencia.Controllers
 {
     [Authorize(Roles = "RRHH")]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public class RecursosHumanosController : Controller
     {
         private readonly ApplicationDbContext _context;

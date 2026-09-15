@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace control_asistencia.Controllers
 {
     [Authorize(Roles = "ADMIN")]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public class AdministradorController : Controller
     {
         public IActionResult Index()

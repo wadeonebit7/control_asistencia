@@ -18,6 +18,7 @@ using Tesseract;
 namespace control_asistencia.Controllers
 {
     [Authorize(Roles = "EMPLEADO")]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public class TrabajadorController : Controller
     {
 
@@ -67,7 +68,7 @@ namespace control_asistencia.Controllers
             if (string.IsNullOrEmpty(claveDinamica))
             {
                 TempData["Error"] = "Por favor, ingrese su clave dinámica.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             var usuario = await _context.Usuarios
@@ -78,7 +79,7 @@ namespace control_asistencia.Controllers
             if (usuario == null)
             {
                 TempData["Error"] = "Clave dinámica incorrecta o inactiva.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             var fechaHoy = DateTime.Now.Date;
@@ -91,7 +92,7 @@ namespace control_asistencia.Controllers
             if (jornadaHabilitada == null)
             {
                 TempData["Error"] = "La jornada de hoy no ha sido habilitada por administración.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             var asistenciaExistente = await _context.Asistencia
@@ -117,7 +118,7 @@ namespace control_asistencia.Controllers
             if (horaActual < inicioSistema || horaActual > cierreSistema)
             {
                 TempData["Error"] = $"Fuera de horario operativo. El turno hoy opera entre las {inicioSistema:hh\\:mm} y las {cierreSistema:hh\\:mm}.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             // 3. Evaluar si corresponde a Salida o Entrada usando la hora fija de las 14:00 hrs
@@ -128,13 +129,13 @@ namespace control_asistencia.Controllers
                 if (asistenciaExistente == null || asistenciaExistente.EstadoEntrada == "PENDIENTE")
                 {
                     TempData["Error"] = "ACCESO DENEGADO: No tienes registro de entrada de hoy. Comunícate con Recursos Humanos.";
-                    return RedirectToAction("LogoutAsistencia", "Usuarios");
+                    return RedirectToAction("LogoutAsistencia", "Auth");
                 }
 
                 if (asistenciaExistente.EstadoSalida != "PENDIENTE")
                 {
                     TempData["Error"] = "Tu salida ya fue registrada anteriormente hoy. ¡Que tengas un buen descanso!";
-                    return RedirectToAction("LogoutAsistencia", "Usuarios");
+                    return RedirectToAction("LogoutAsistencia", "Auth");
                 }
 
                 TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
@@ -148,7 +149,7 @@ namespace control_asistencia.Controllers
                 if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
                 {
                     TempData["Error"] = "Ya registraste tu entrada. El cambio a modo salida será a partir de las 14:00 hrs.";
-                    return RedirectToAction("LogoutAsistencia", "Usuarios");
+                    return RedirectToAction("LogoutAsistencia", "Auth");
                 }
 
                 TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
@@ -183,7 +184,7 @@ namespace control_asistencia.Controllers
             if (!confirmacion)
             {
                 TempData["Error"] = "Debe marcar la casilla para confirmar su entrada.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             // 2. Rescatar el ID del usuario desde TempData de forma correcta y segura
@@ -196,7 +197,7 @@ namespace control_asistencia.Controllers
             else
             {
                 TempData["Error"] = "Su sesión ha expirado. Por favor, vuelva a ingresar su ticket.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             // 3. Obtenemos la fecha actual y la hora exacta del marcaje
@@ -210,7 +211,7 @@ namespace control_asistencia.Controllers
             if (jornadaHabilitada == null)
             {
                 TempData["Error"] = "La asistencia para hoy no ha sido habilitada por administración.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             // 5. Verificamos si el empleado ya registró su entrada hoy (evitar duplicados)
@@ -220,7 +221,7 @@ namespace control_asistencia.Controllers
             if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
             {
                 TempData["Error"] = "Usted ya registró su entrada el día de hoy.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             // ==========================================================
@@ -267,7 +268,7 @@ namespace control_asistencia.Controllers
             await _context.SaveChangesAsync();
 
             TempData["Mensaje"] = "¡Entrada registrada correctamente!";
-            return RedirectToAction("LogoutAsistencia", "Usuarios");
+            return RedirectToAction("LogoutAsistencia", "Auth");
         }
 
 
@@ -281,7 +282,7 @@ namespace control_asistencia.Controllers
             if (!confirmacion)
             {
                 TempData["Error"] = "Debe marcar la casilla para confirmar su salida.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             int idUsuarioLogueado = 0;
@@ -293,7 +294,7 @@ namespace control_asistencia.Controllers
             else
             {
                 TempData["Error"] = "Su sesión ha expirado. Por favor, vuelva a ingresar su ticket.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             var fechaHoy = DateTime.Now.Date;
@@ -305,7 +306,7 @@ namespace control_asistencia.Controllers
             if (jornadaHabilitada == null)
             {
                 TempData["Error"] = "La asistencia para hoy no ha sido habilitada por administración.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             var asistenciaExistente = await _context.Asistencia
@@ -314,13 +315,13 @@ namespace control_asistencia.Controllers
             if (asistenciaExistente == null)
             {
                 TempData["Error"] = "No tienes un registro de entrada previo para hoy. Por favor, comunícate con Recursos Humanos.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             if (asistenciaExistente.EstadoSalida != "PENDIENTE")
             {
                 TempData["Error"] = "Tu salida ya fue registrada anteriormente hoy. Por seguridad, hemos cerrado esta sesión.";
-                return RedirectToAction("LogoutAsistencia", "Usuarios");
+                return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             string estadoSalidaCalculado = "MARCADA";
@@ -354,7 +355,7 @@ namespace control_asistencia.Controllers
             TempData.Remove("UsuarioLogueado");
 
             TempData["Mensaje"] = "¡Salida registrada correctamente!";
-            return RedirectToAction("LogoutAsistencia", "Usuarios");
+            return RedirectToAction("LogoutAsistencia", "Auth");
         }
 
 

@@ -15,10 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Views\Recursos\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Update="tessdata\spa.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

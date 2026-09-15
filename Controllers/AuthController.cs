@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 namespace control_asistencia.Controllers
 {
-    public class UsuariosController : Controller
+    public class AuthController : Controller
     {
         private readonly ApplicationDbContext _context;
 
-        public UsuariosController(ApplicationDbContext context)
+        public AuthController(ApplicationDbContext context)
         {
             _context = context;
         }
@@ -34,61 +34,6 @@ namespace control_asistencia.Controllers
             // Si no está logueado, le mostramos el formulario de Login normal
             return View();
         }
-
-        [HttpGet]
-        public async Task<IActionResult> Logout()
-        {
-            // Esto destruye la cookie de autenticación del navegador por completo
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-
-            // Opcional: Limpiar también los mensajes temporales por si acaso
-            TempData.Clear();
-
-            // Lo mandamos de vuelta al Login
-            return RedirectToAction("Index", "Usuarios");
-        }
-
-
-
-
-
-        [HttpGet]
-        public async Task<IActionResult> LogoutAsistencia()
-        {
-            var fechaHoy = DateTime.Now.Date;
-            var horaActual = DateTime.Now.TimeOfDay;
-
-            var jornada = await _context.habilitar_asistencia
-                .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
-
-            bool sistemaAbierto = false;
-
-            if (jornada != null)
-            {
-                // Replicamos la misma lógica de los márgenes de tiempo del TrabajadorController
-                TimeSpan horaEntradaBD = jornada.HoraEntrada;
-                TimeSpan horaSalidaBD = jornada.HoraSalida;
-
-                TimeSpan inicioEntrada = horaEntradaBD.Subtract(new TimeSpan(2, 0, 0));
-                if (inicioEntrada < TimeSpan.Zero) inicioEntrada = TimeSpan.Zero;
-
-                TimeSpan cierreSistema = horaSalidaBD.Add(new TimeSpan(3, 0, 0));
-                if (cierreSistema > new TimeSpan(23, 59, 59)) cierreSistema = new TimeSpan(23, 59, 59);
-
-                // Si la hora actual está dentro de los límites, abrimos el sistema
-                if (horaActual >= inicioEntrada && horaActual <= cierreSistema)
-                {
-                    sistemaAbierto = true;
-                }
-            }
-
-            // Le pasamos al HTML el resultado real considerando FECHA y HORA
-            ViewBag.JornadaHabilitada = sistemaAbierto;
-
-            return View();
-        }
-
-
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -130,12 +75,72 @@ namespace control_asistencia.Controllers
                 if (nombreRol == "ADMIN") return RedirectToAction("Index", "Administrador");
                 else if (nombreRol == "EMPLEADO") return RedirectToAction("Index", "Trabajador");
                 else if (nombreRol == "RRHH") return RedirectToAction("Index", "RecursosHumanos"); // Descomentado
-                else return RedirectToAction("Index", "Usuarios");
+                else return RedirectToAction("Index", "Auth");
             }
 
             // Si las credenciales son incorrectas, recarga el formulario de Login con el error
             ViewBag.Error = "Correo o contraseña incorrectos.";
-            return View("Logout");
+            return View("Index");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Logout()
+        {
+            // Esto destruye la cookie de autenticación del navegador por completo
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+            // Opcional: Limpiar también los mensajes temporales por si acaso
+            TempData.Clear();
+
+            // Lo mandamos de vuelta al Login
+            return RedirectToAction("Index", "Auth");
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+        [HttpGet]
+        public async Task<IActionResult> LogoutAsistencia()
+        {
+            var fechaHoy = DateTime.Now.Date;
+            var horaActual = DateTime.Now.TimeOfDay;
+
+            var jornada = await _context.habilitar_asistencia
+                .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
+
+            bool sistemaAbierto = false;
+
+            if (jornada != null)
+            {
+                // Replicamos la misma lógica de los márgenes de tiempo del TrabajadorController
+                TimeSpan horaEntradaBD = jornada.HoraEntrada;
+                TimeSpan horaSalidaBD = jornada.HoraSalida;
+
+                TimeSpan inicioEntrada = horaEntradaBD.Subtract(new TimeSpan(2, 0, 0));
+                if (inicioEntrada < TimeSpan.Zero) inicioEntrada = TimeSpan.Zero;
+
+                TimeSpan cierreSistema = horaSalidaBD.Add(new TimeSpan(3, 0, 0));
+                if (cierreSistema > new TimeSpan(23, 59, 59)) cierreSistema = new TimeSpan(23, 59, 59);
+
+                // Si la hora actual está dentro de los límites, abrimos el sistema
+                if (horaActual >= inicioEntrada && horaActual <= cierreSistema)
+                {
+                    sistemaAbierto = true;
+                }
+            }
+
+            // Le pasamos al HTML el resultado real considerando FECHA y HORA
+            ViewBag.JornadaHabilitada = sistemaAbierto;
+
+            return View();
         }
     }
 }

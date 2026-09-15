@@ -20,8 +20,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath = "/Usuarios/Index"; // A donde te manda si no estás logueado
-        options.AccessDeniedPath = "/Usuarios/Index"; // A donde te manda si no tienes el rol correcto
+        options.LoginPath = "/Auth/Index"; // A donde te manda si no estás logueado
+        options.AccessDeniedPath = "/Auth/Index"; // A donde te manda si no tienes el rol correcto
         options.ExpireTimeSpan = TimeSpan.FromHours(8); // Duración de la sesión
     });
 
@@ -45,6 +45,6 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=USUARIOS}/{action=Index}/{id?}");
+    pattern: "{controller=Auth}/{action=Index}/{id?}");
 
 app.Run();
