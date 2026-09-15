@@ -1,0 +1,97 @@
+﻿@model IEnumerable<control_asistencia.Models.Personal>
+
+@{
+    ViewData["Title"] = "Gestión de Personal - RRHH";
+}
+
+<div class="container py-4">
+    <!-- Encabezado de la página -->
+    <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+        <div>
+            <h3 class="text-white fw-bold mb-1"><i class="bi bi-people-fill text-info me-2"></i>Gestión de Personal</h3>
+            <p class="text-muted mb-0 small">Administra el listado oficial de trabajadores de la empresa.</p>
+        </div>
+        <div>
+            <a href="@Url.Action("CrearPersonal", "RecursosHumanos")" class="btn btn-info btn-sm rounded-pill px-4 fw-bold shadow-sm" style="color: #0f172a;">
+                <i class="bi bi-person-plus-fill me-1"></i> Nuevo Personal
+            </a>
+        </div>
+    </div>
+
+    <!-- Alertas de TempData -->
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show border-success border-opacity-25 bg-success bg-opacity-10 text-success shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Mensaje"]
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Tabla de Personal -->
+    <div class="dashboard-card p-4">
+        <div class="table-responsive">
+            <table class="table table-custom align-middle">
+                <thead>
+                    <tr>
+                        <th>RUT</th>
+                        <th>Nombre Completo</th>
+                        <th>Correo</th>
+                        <th>Celular</th>
+                        <th>Rol</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="fw-semibold text-white">@item.Rut</td>
+                                <td>@item.Nombre @item.Apellido</td>
+                                <td>@item.Correo</td>
+                                <td>@item.Celular</td>
+                                <td>
+                                    @if (item.Rol.Nombre == "ADMIN")
+                                    {
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">@item.Rol.Nombre</span>
+                                    }
+                                    else if (item.Rol.Nombre == "RRHH")
+                                    {
+                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">@item.Rol.Nombre</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">@item.Rol.Nombre</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <!-- Botón Editar -->
+                                        <a href="@Url.Action("EditarPersonal", "RecursosHumanos", new { id = item.Id })" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Editar">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+
+                                        <!-- Formulario para Eliminar Lógicamente -->
+                                        <form asp-action="EliminarPersonal" asp-route-id="@item.Id" method="post" onsubmit="return confirm('¿Estás seguro de que deseas desactivar al trabajador @item.Nombre @item.Apellido? Esta acción también deshabilitará su acceso al sistema.');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Desactivar">
+                                                <i class="bi bi-person-x-fill"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">No hay personal activo registrado en el sistema.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

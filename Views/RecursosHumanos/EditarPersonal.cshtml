@@ -1,0 +1,93 @@
+﻿@model control_asistencia.Models.Personal
+
+@{
+    ViewData["Title"] = "Editar Personal - RRHH";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+        <div>
+            <h3 class="text-white fw-bold mb-1"><i class="bi bi-pencil-square text-info me-2"></i>Modificar Datos del Trabajador</h3>
+            <p class="text-muted mb-0 small">Actualiza la información personal de @Model.Nombre @Model.Apellido.</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Personal", "RecursosHumanos")" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
+                <i class="bi bi-arrow-left me-1"></i> Volver al listado
+            </a>
+        </div>
+    </div>
+
+    <!-- Mostrar errores generales del modelo si los hay (ej. RUT duplicado) -->
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-danger border-opacity-25 bg-danger bg-opacity-10 text-danger shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> Por favor, corrige los errores en el formulario.
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="dashboard-card p-4">
+                <form asp-action="EditarPersonal" method="post">
+                    @Html.AntiForgeryToken()
+                    <!-- CAMPO OCULTO MUY IMPORTANTE -->
+                    <input type="hidden" asp-for="Id" />
+                    <input type="hidden" asp-for="Estado" />
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Rut" class="form-label text-muted small fw-semibold">RUT</label>
+                            <input asp-for="Rut" class="form-control" required />
+                            <span asp-validation-for="Rut" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="IdRol" class="form-label text-muted small fw-semibold">Rol Asignado</label>
+                            <select asp-for="IdRol" asp-items="@(new SelectList(ViewBag.Roles, "Id", "Nombre", Model.IdRol))" class="form-select" required>
+                            </select>
+                            <span asp-validation-for="IdRol" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Nombre" class="form-label text-muted small fw-semibold">Nombres</label>
+                            <input asp-for="Nombre" class="form-control" required />
+                            <span asp-validation-for="Nombre" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Apellido" class="form-label text-muted small fw-semibold">Apellidos</label>
+                            <input asp-for="Apellido" class="form-control" required />
+                            <span asp-validation-for="Apellido" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Correo" class="form-label text-muted small fw-semibold">Correo Electrónico</label>
+                        <input asp-for="Correo" type="email" class="form-control" required />
+                        <span asp-validation-for="Correo" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-8">
+                            <label asp-for="Direccion" class="form-label text-muted small fw-semibold">Dirección</label>
+                            <input asp-for="Direccion" class="form-control" required />
+                            <span asp-validation-for="Direccion" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Celular" class="form-label text-muted small fw-semibold">Celular</label>
+                            <input asp-for="Celular" class="form-control" required />
+                            <span asp-validation-for="Celular" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="text-end mt-4">
+                        <button type="submit" class="btn btn-info px-5 fw-bold" style="color: #0f172a;">
+                            <i class="bi bi-arrow-repeat me-2"></i> Actualizar Datos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
