@@ -12,9 +12,7 @@ namespace control_asistencia.Data
         public DbSet<Personal> Personal { get; set; }
         public DbSet<Rol> Rol { get; set; }
         public DbSet<Usuarios> Usuarios { get; set; }
-
         public DbSet<Asistencia> Asistencia { get; set; }
-
         public DbSet<habilitar_asistencia> habilitar_asistencia { get; set; }
 
 

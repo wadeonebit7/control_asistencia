@@ -1,6 +1,9 @@
 ﻿using control_asistencia.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
 using System.Threading.Tasks;
 
 namespace control_asistencia.Controllers
@@ -90,31 +93,24 @@ namespace control_asistencia.Controllers
                 string nombreCompleto = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
                 string nombreRol = usuario.Personal.Rol.Nombre;
 
-                TempData["UsuarioLogueado"] = nombreCompleto;
-                TempData["RolUsuario"] = nombreRol;
+                // 1. CREACIÓN DE CLAIMS (Carnet de identidad del usuario en el sistema)
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+                    new Claim(ClaimTypes.Name, nombreCompleto),
+                    new Claim(ClaimTypes.Role, nombreRol),
+                    new Claim("IdPersonal", usuario.IdPersonal.ToString()) // Guardamos esto porque nos servirá en RRHH
+                };
 
-                // Redirección limpia basada en el rol de la base de datos
-                if (nombreRol == "ADMIN")
-                {
-                    TempData["Mensaje"] = $"¡Bienvenido Administrador: {nombreCompleto}!";
-                    return RedirectToAction("Index", "Administrador");
-                }
-                else if (nombreRol == "EMPLEADO")
-                {
-                    TempData["Mensaje"] = $"¡Hola {nombreCompleto}!";
-                     return RedirectToAction("Index", "Trabajador");
-                    
-                }
-                else if (nombreRol == "RRHH")
-                {
-                    TempData["Mensaje"] = $"¡Bienvenido Recursos Humanos: {nombreCompleto}!";
-                    // return RedirectToAction("Index", "RecursosHumanos");
-                    return View("Index");
-                }
-                else
-                {
-                    return RedirectToAction("Index", "Usuarios");
-                }
+                // 2. CREACIÓN DE LA COOKIE
+                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+
+                // 3. REDIRECCIÓN
+                if (nombreRol == "ADMIN") return RedirectToAction("Index", "Administrador");
+                else if (nombreRol == "EMPLEADO") return RedirectToAction("Index", "Trabajador");
+                else if (nombreRol == "RRHH") return RedirectToAction("Index", "RecursosHumanos"); // Descomentado
+                else return RedirectToAction("Index", "Usuarios");
             }
 
             // Si las credenciales son incorrectas, recarga el formulario de Login con el error

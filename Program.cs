@@ -1,13 +1,11 @@
 using control_asistencia.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-
-
-
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -18,9 +16,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     )
 );
 
-
-
-
+// Servicio de Autenticacion
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/Usuarios/Index"; // A donde te manda si no estás logueado
+        options.AccessDeniedPath = "/Usuarios/Index"; // A donde te manda si no tienes el rol correcto
+        options.ExpireTimeSpan = TimeSpan.FromHours(8); // Duración de la sesión
+    });
 
 var app = builder.Build();
 
@@ -37,6 +40,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(

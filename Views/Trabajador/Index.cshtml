@@ -1,4 +1,5 @@
 ﻿@model IEnumerable<control_asistencia.Models.Asistencia>
+@using System.Security.Claims
 
 @{
     ViewData["Title"] = "Panel de Empleado - Control de Asistencia";
@@ -156,11 +157,12 @@
     }
 </style>
 
+<!-- BIENVENIDA AL USUARIO -->
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
         <div>
-            <h3 class="text-white fw-bold mb-1">¡Hola, @TempData["UsuarioLogueado"]!</h3>
-            <p class="text-muted mb-0 small"><i class="bi bi-shield-check text-info me-1"></i> Rol: @TempData["RolUsuario"]</p>
+            <h3 class="text-white fw-bold mb-1">¡Hola, @User.Identity.Name!</h3>
+            <p class="text-muted mb-0 small"><i class="bi bi-shield-check text-info me-1"></i> Rol: @User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value</p>
         </div>
         <div>
             <a href="@Url.Action("Logout", "Usuarios")" class="btn btn-outline-danger btn-sm rounded-pill px-3">
