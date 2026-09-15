@@ -16,6 +16,9 @@ namespace control_asistencia.Data
         public DbSet<habilitar_asistencia> habilitar_asistencia { get; set; }
         public DbSet<Solicitudes> Solicitudes { get; set; }
 
+        public DbSet<LicenciaMedica> LicenciaMedica { get; set; }
+
+        public DbSet<AjusteAsistencia>AjusteAsistencia { get; set; }
 
 
 

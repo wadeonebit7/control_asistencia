@@ -20,4 +20,10 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\documentos_respaldo\LicenciaMedica\" />
+    <Folder Include="wwwroot\documentos_respaldo\PermisoAdministrativo\" />
+    <Folder Include="wwwroot\Licencia_Medica\" />
+  </ItemGroup>
+
 </Project>

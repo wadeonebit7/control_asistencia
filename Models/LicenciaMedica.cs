@@ -20,7 +20,7 @@ namespace control_asistencia.Models
 
         [Required]
         [Column("folio")]
-        public int Folio { get; set; }
+        public string  Folio { get; set; }
 
         [Required]
         [Column("profesional")]
