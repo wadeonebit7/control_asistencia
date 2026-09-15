@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace control_asistencia.Controllers
 {
+    [Authorize(Roles = "ADMIN")]
     public class AdministradorController : Controller
     {
         public IActionResult Index()

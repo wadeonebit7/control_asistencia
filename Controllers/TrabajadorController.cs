@@ -1,22 +1,23 @@
 ﻿using control_asistencia.Data;
 using control_asistencia.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PdfiumViewer;
 using System;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Tesseract;
 
-using Microsoft.AspNetCore.Hosting;
-using System.IO;
-using System.Text.RegularExpressions;
-using PdfiumViewer;
-using System.Drawing.Imaging;
-
 
 namespace control_asistencia.Controllers
 {
+    [Authorize(Roles = "EMPLEADO")]
     public class TrabajadorController : Controller
     {
 

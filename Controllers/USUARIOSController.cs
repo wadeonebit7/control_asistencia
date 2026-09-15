@@ -19,13 +19,33 @@ namespace control_asistencia.Controllers
 
         public IActionResult Index()
         {
+            // Verificamos si el usuario ya tiene una sesión activa (cookies)
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                // Buscamos el claim del Rol
+                var rol = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+
+                // Redirigimos según su rol
+                if (rol == "ADMIN") return RedirectToAction("Index", "Administrador");
+                if (rol == "EMPLEADO") return RedirectToAction("Index", "Trabajador");
+                if (rol == "RRHH") return RedirectToAction("Index", "RecursosHumanos");
+            }
+
+            // Si no está logueado, le mostramos el formulario de Login normal
             return View();
         }
 
         [HttpGet]
-        public IActionResult Logout()
+        public async Task<IActionResult> Logout()
         {
-            return View();
+            // Esto destruye la cookie de autenticación del navegador por completo
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+            // Opcional: Limpiar también los mensajes temporales por si acaso
+            TempData.Clear();
+
+            // Lo mandamos de vuelta al Login
+            return RedirectToAction("Index", "Usuarios");
         }
 
 
