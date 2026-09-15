@@ -14,6 +14,7 @@ namespace control_asistencia.Data
         public DbSet<Usuarios> Usuarios { get; set; }
         public DbSet<Asistencia> Asistencia { get; set; }
         public DbSet<habilitar_asistencia> habilitar_asistencia { get; set; }
+        public DbSet<Solicitudes> Solicitudes { get; set; }
 
 
 

@@ -19,7 +19,21 @@ namespace control_asistencia.Controllers
 
         public async Task<IActionResult> Index()
         {
-            return View();
+            // 1. Calculamos los contadores para las tarjetas informativas
+            ViewBag.TotalPendientes = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "PENDIENTE" && s.Estado == true);
+            ViewBag.TotalAprobadas = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "APROBADO" && s.Estado == true);
+            ViewBag.TotalRechazadas = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "RECHAZADO" && s.Estado == true);
+
+            // 2. Traemos solo las solicitudes PENDIENTES para mostrarlas en la tabla principal
+            // Hacemos un Include para poder acceder al Nombre y RUT del trabajador que la envió
+            var solicitudesPendientes = await _context.Solicitudes
+                .Include(s => s.Usuario)
+                    .ThenInclude(u => u.Personal)
+                .Where(s => s.EstadoSolicitud == "PENDIENTE" && s.Estado == true)
+                .OrderBy(s => s.CreateAt) // Las más antiguas primero, para que se atiendan en orden
+                .ToListAsync();
+
+            return View(solicitudesPendientes);
         }
 
         // 2. LISTAR PERSONAL
