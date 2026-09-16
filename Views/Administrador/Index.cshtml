@@ -1,1 +1,557 @@
-﻿
+﻿@model IEnumerable<control_asistencia.Models.Asistencia>
+
+@{
+    ViewData["Title"] = "Panel de Administración - Control Global";
+    int mesActual = ViewBag.MesSeleccionado ?? DateTime.Now.Month;
+    int anioActual = ViewBag.AnioSeleccionado ?? DateTime.Now.Year;
+    string estadoActual = ViewBag.EstadoFiltro ?? "";
+    string busquedaActual = ViewBag.BuscarUsuario ?? "";
+    string tipoFiltroFecha = ViewBag.TipoFiltroFecha ?? "mes";
+    string fechaExactaVal = ViewBag.FechaExacta ?? DateTime.Now.ToString("yyyy-MM-dd");
+
+    var listaAsistenciaSegura = Model ?? Enumerable.Empty<control_asistencia.Models.Asistencia>();
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<style>
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+        overflow-x: hidden;
+        font-size: 1.05rem;
+    }
+
+    .admin-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 270px;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.95);
+        border-right: 1px solid rgba(56, 189, 248, 0.15);
+        backdrop-filter: blur(12px);
+        z-index: 1000;
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    .sidebar-brand {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #38bdf8;
+        margin-bottom: 30px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .sidebar-nav .nav-link {
+        color: #94a3b8;
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-weight: 500;
+        margin-bottom: 8px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.05rem;
+    }
+
+        .sidebar-nav .nav-link:hover, .sidebar-nav .nav-link.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
+        }
+
+    .main-content {
+        margin-left: 270px;
+        padding: 30px;
+    }
+
+    .dashboard-card {
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(56, 189, 248, 0.15);
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .custom-input, .custom-select {
+        background: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid rgba(56, 189, 248, 0.2) !important;
+        color: #f8fafc !important;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 1.05rem;
+    }
+
+    .table-custom {
+        color: #e2e8f0;
+        background: transparent;
+        font-size: 1.05rem;
+    }
+
+        .table-custom th {
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #38bdf8;
+            font-weight: 600;
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
+
+        .table-custom td {
+            border-color: rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+
+    .badge {
+        font-size: 0.95rem;
+    }
+</style>
+
+<!-- BARRA LATERAL -->
+<div class="admin-sidebar d-flex flex-column justify-content-between">
+    <div>
+        <div class="sidebar-brand">
+            <i class="bi bi-shield-shaded fs-3"></i> Admin Panel
+        </div>
+        <ul class="nav nav-pills flex-column sidebar-nav" id="adminTab" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active w-100 text-start" data-bs-toggle="pill" data-bs-target="#monitoreo-pane" type="button" role="tab">
+                    <i class="bi bi-speedometer2"></i> Monitoreo General
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#colaboradores-pane" type="button" role="tab">
+                    <i class="bi bi-people-fill"></i> Gestionar Colaboradores
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#crear-usuario-pane" type="button" role="tab">
+                    <i class="bi bi-person-plus-fill"></i> Crear Usuario
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#log-solicitudes-pane" type="button" role="tab">
+                    <i class="bi bi-journal-text"></i> Log de Solicitudes
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#habilitar-asistencia-pane" type="button" role="tab">
+                    <i class="bi bi-clock-history"></i> Habilitar Asistencia
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="pt-3">
+        <a href="@Url.Action("Logout", "Auth")" class="btn btn-outline-danger w-100 rounded-pill py-2 fs-6">
+            <i class="bi bi-box-arrow-right me-2"></i> Cerrar Sesión
+        </a>
+    </div>
+</div>
+
+<!-- CONTENIDO PRINCIPAL -->
+<div class="main-content">
+    <div class="tab-content" id="adminTabContent">
+
+        <!-- 1. MONITOREO GENERAL -->
+        <div class="tab-pane fade show active" id="monitoreo-pane" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+                <div>
+                    <h3 class="text-white fw-bold mb-1"><i class="bi bi-eye text-info me-2"></i>Monitoreo Rápido de Asistencia</h3>
+                    <p class="text-muted mb-0">Visualiza incidencias, atrasos y ausencias por mes o fecha exacta.</p>
+                </div>
+            </div>
+
+            <div class="dashboard-card p-4 mb-4">
+                <form class="row g-3 align-items-end" onsubmit="event.preventDefault();">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted fw-semibold">Colaborador</label>
+                        <input type="text" id="buscarUsuario" name="buscarUsuario" value="@busquedaActual" class="form-control custom-input" placeholder="Nombre, Apellido o RUT..." />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted fw-semibold">Tipo de Filtro</label>
+                        <select id="tipoFiltroFecha" class="form-select custom-select">
+                            <option value="mes" selected="@(tipoFiltroFecha == "mes")">Por Mes</option>
+                            <option value="exacta" selected="@(tipoFiltroFecha == "exacta")">Fecha Exacta</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="bloqueMes">
+                        <label class="form-label text-muted fw-semibold">Mes</label>
+                        <select id="mesFiltro" class="form-select custom-select">
+                            @for (int i = 1; i <= 12; i++)
+                            {
+                                <option value="@i" selected="@(mesActual == i)">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(i)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-none" id="bloqueFechaExacta">
+                        <label class="form-label text-muted fw-semibold">Fecha Exacta</label>
+                        <input type="date" id="fechaExactaFiltro" value="@fechaExactaVal" class="form-control custom-input" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted fw-semibold">Incidencia</label>
+                        <select id="estadoFiltro" class="form-select custom-select">
+                            <option value="">-- Todos --</option>
+                            <option value="ATRASADO" selected="@(estadoActual == "ATRASADO")">Atrasado</option>
+                            <option value="ANTICIPADO" selected="@(estadoActual == "ANTICIPADO")">Salida Anticipada</option>
+                            <option value="INASISTENCIA" selected="@(estadoActual == "INASISTENCIA")">Inasistencia</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button type="button" class="btn btn-info text-dark fw-semibold w-100 py-2" onclick="ejecutarFiltroDinamico()">
+                            <i class="bi bi-search me-1"></i> Filtrar
+                        </button>
+                        <a href="@Url.Action("Index", "Administrador")" class="btn btn-outline-secondary py-2" title="Limpiar">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="dashboard-card p-4">
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Colaborador</th>
+                                <th>Fecha</th>
+                                <th>Entrada Real</th>
+                                <th>Salida Real</th>
+                                <th>Horas Trabajadas</th>
+                                <th>Estado Entrada</th>
+                                <th>Estado Salida</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyMonitoreo">
+                            @if (listaAsistenciaSegura.Any())
+                            {
+                                foreach (var item in listaAsistenciaSegura)
+                                {
+                                    TimeSpan horasTrabajadas = item.HoraSalidaReal.Subtract(item.HoraEntradaReal);
+                                    string textoHoras = item.HoraSalidaReal.TotalSeconds > 0 ? $"{(int)horasTrabajadas.TotalHours:D2}:{horasTrabajadas.Minutes:D2} hrs" : "--:--";
+                                    string nombreCompleto = item.Usuario?.Personal != null ? $"{item.Usuario.Personal.Nombre} {item.Usuario.Personal.Apellido}" : "Usuario Desconocido";
+                                    <tr>
+                                        <td class="ps-4 fw-semibold text-white"><i class="bi bi-person-circle text-info me-1"></i> @nombreCompleto</td>
+                                        <td>@item.CreateAt.ToShortDateString()</td>
+                                        <td>@item.HoraEntradaReal</td>
+                                        <td>@item.HoraSalidaReal</td>
+                                        <td class="fw-semibold text-info">@textoHoras</td>
+                                        <td><span class="badge bg-success bg-opacity-10 text-success border px-2 py-1">@item.EstadoEntrada</span></td>
+                                        <td><span class="badge bg-warning bg-opacity-10 text-warning border px-2 py-1">@item.EstadoSalida</span></td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="7" class="text-center text-muted py-5">No se encontraron registros de asistencia.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. GESTIÓN DE COLABORADORES -->
+        <div class="tab-pane fade" id="colaboradores-pane" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+                <div>
+                    <h3 class="text-white fw-bold mb-1"><i class="bi bi-people text-info me-2"></i>Directorio de Colaboradores</h3>
+                    <p class="text-muted mb-0">Búsqueda avanzada de empleados y gestión de cuentas.</p>
+                </div>
+            </div>
+
+            <form class="dashboard-card p-4 mb-4" onsubmit="event.preventDefault();">
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <input type="text" id="buscadorEmpleados" class="form-control custom-input" placeholder="Buscar por Nombre, Apellido o RUT..." />
+                    </div>
+                </div>
+            </form>
+
+            <div class="dashboard-card p-4">
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">RUT</th>
+                                <th>Nombre Completo</th>
+                                <th>Correo</th>
+                                <th>Celular</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyColaboradores"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. CREAR USUARIO -->
+        <div class="tab-pane fade" id="crear-usuario-pane" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+                <div>
+                    <h3 class="text-white fw-bold mb-1"><i class="bi bi-person-plus text-info me-2"></i>Crear Nueva Cuenta de Usuario</h3>
+                    <p class="text-muted mb-0">Asocia credenciales de acceso al personal sin cuenta.</p>
+                </div>
+            </div>
+
+            <div class="dashboard-card p-4" style="max-width: 700px; margin: 0 auto;">
+                <form asp-action="CrearUsuario" method="post">
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">Personal Disponible (Sin Cuenta)</label>
+                        <select name="IdPersonal" class="form-select custom-select" required>
+                            <option value="">-- Seleccione un colaborador --</option>
+                            @if (ViewBag.PersonalSinCuenta != null)
+                            {
+                                foreach (var p in (IEnumerable<control_asistencia.Models.Personal>)ViewBag.PersonalSinCuenta)
+                                {
+                                    <option value="@p.Id">@p.Rut - @p.Nombre @p.Apellido</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">Estatus de Usuario</label>
+                        <select name="Status" class="form-select custom-select" required>
+                            <option value="ACTIVO" selected>ACTIVO</option>
+                            <option value="INACTIVO">INACTIVO</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">Contraseña Temporal</label>
+                        <input type="password" name="Password" class="form-control custom-input" required placeholder="Contraseña segura..." />
+                    </div>
+
+                    <input type="hidden" name="Estado" value="true" />
+
+                    <button type="submit" class="btn btn-info text-dark fw-bold w-100 py-3 fs-5 mt-2">
+                        <i class="bi bi-check-circle-fill me-2"></i> Registrar Usuario
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 4. LOG DE SOLICITUDES Y MODIFICACIONES (ACTUALIZADO DINÁMICO) -->
+        <div class="tab-pane fade" id="log-solicitudes-pane" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+                <div>
+                    <h3 class="text-white fw-bold mb-1"><i class="bi bi-journal-bookmark text-info me-2"></i>Log de Solicitudes y Modificaciones</h3>
+                    <p class="text-muted mb-0">Auditoría completa de acciones, respuestas y cambios detallados realizados por los administradores.</p>
+                </div>
+            </div>
+
+            <!-- FILTROS DINÁMICOS PARA LOGS -->
+            <div class="dashboard-card p-4 mb-4">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <input type="text" id="buscadorLogs" class="form-control custom-input" placeholder="Buscar por Administrador, Respuesta o ID de Solicitud..." />
+                    </div>
+                    <div class="col-md-4">
+                        <select id="filtroRespuestaLogs" class="form-select custom-select">
+                            <option value="">-- Filtrar por Tipo de Respuesta --</option>
+                            <option value="aprobada">Aprobada</option>
+                            <option value="rechazada">Rechazada</option>
+                            <option value="actualización">Actualización</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-card p-4">
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">ID Solicitud</th>
+                                <th>Revisado Por (Admin)</th>
+                                <th>Respuesta / Acción</th>
+                                <th>Fecha Log</th>
+                                <th>Detalle Modificaciones (Log Mod)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyLogs">
+                            <!-- Se llena dinámicamente vía AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. HABILITAR ASISTENCIA -->
+        <div class="tab-pane fade" id="habilitar-asistencia-pane" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+                <div>
+                    <h3 class="text-white fw-bold mb-1"><i class="bi bi-toggle-on text-info me-2"></i>Control Global de Fichaje</h3>
+                    <p class="text-muted mb-0">Habilita o deshabilita la ventana de marcación para todo el personal.</p>
+                </div>
+            </div>
+
+            <div class="dashboard-card p-5 text-center" style="max-width: 500px; margin: 0 auto;">
+                <i class="bi bi-shield-lock-fill text-info mb-3" style="font-size: 3.5rem;"></i>
+                <h4 class="text-white mb-3">Estado Actual del Sistema</h4>
+                <div class="mb-4">
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-4 py-2 fs-5">
+                        ASISTENCIA HABILITADA
+                    </span>
+                </div>
+                <button type="button" class="btn btn-outline-danger w-100 py-2 rounded-pill fw-semibold fs-5">
+                    <i class="bi bi-power me-1"></i> Deshabilitar Marcaciones
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // --- 1. MONITOREO GENERAL ---
+        const inputBuscar = document.getElementById('buscarUsuario');
+        const selectTipoFiltro = document.getElementById('tipoFiltroFecha');
+        const selectMes = document.getElementById('mesFiltro');
+        const inputFecha = document.getElementById('fechaExactaFiltro');
+        const selectEstado = document.getElementById('estadoFiltro');
+        const tbodyMonitoreo = document.getElementById('tbodyMonitoreo');
+
+        function toggleFiltroFecha() {
+            if (selectTipoFiltro.value === 'exacta') {
+                document.getElementById('bloqueMes').classList.add('d-none');
+                document.getElementById('bloqueFechaExacta').classList.remove('d-none');
+            } else {
+                document.getElementById('bloqueFechaExacta').classList.add('d-none');
+                document.getElementById('bloqueMes').classList.remove('d-none');
+            }
+            ejecutarFiltroDinamico();
+        }
+
+        async function ejecutarFiltroDinamico() {
+            const params = new URLSearchParams({
+                buscarUsuario: inputBuscar.value,
+                tipoFiltro: selectTipoFiltro.value,
+                mes: selectMes.value,
+                fechaExacta: inputFecha.value,
+                estadoFiltro: selectEstado.value
+            });
+            try {
+                const response = await fetch(`/Administrador/ObtenerMonitoreoDinamico?${params.toString()}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    tbodyMonitoreo.innerHTML = data.length === 0 ? `<tr><td colspan="7" class="text-center text-muted py-5">No se encontraron registros.</td></tr>` : "";
+                    data.forEach(item => {
+                        tbodyMonitoreo.innerHTML += `
+                            <tr>
+                                <td class="ps-4 fw-semibold text-white"><i class="bi bi-person-circle text-info me-1"></i> ${item.colaborador}</td>
+                                <td>${item.fecha}</td>
+                                <td>${item.entrada}</td>
+                                <td>${item.salida}</td>
+                                <td class="fw-semibold text-info">${item.horasTrabajadas}</td>
+                                <td><span class="badge bg-success bg-opacity-10 text-success border px-2 py-1">${item.estadoEntrada}</span></td>
+                                <td><span class="badge bg-warning bg-opacity-10 text-warning border px-2 py-1">${item.estadoSalida}</span></td>
+                            </tr>`;
+                    });
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        if(selectTipoFiltro) selectTipoFiltro.addEventListener('change', toggleFiltroFecha);
+        if(selectMes) selectMes.addEventListener('change', ejecutarFiltroDinamico);
+        if(inputFecha) inputFecha.addEventListener('change', ejecutarFiltroDinamico);
+        if(selectEstado) selectEstado.addEventListener('change', ejecutarFiltroDinamico);
+        if(inputBuscar) inputBuscar.addEventListener('input', () => setTimeout(ejecutarFiltroDinamico, 300));
+
+        // --- 2. GESTIÓN DE COLABORADORES ---
+        const inputBuscarEmpleados = document.getElementById('buscadorEmpleados');
+        const tbodyColaboradores = document.getElementById('tbodyColaboradores');
+
+        async function ejecutarBusquedaUsuarios() {
+            const termino = inputBuscarEmpleados ? inputBuscarEmpleados.value : '';
+            try {
+                const response = await fetch(`/Administrador/ObtenerUsuariosDinamico?termino=${encodeURIComponent(termino)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    tbodyColaboradores.innerHTML = data.length === 0 ? `<tr><td colspan="5" class="text-center text-muted py-5">No se encontraron colaboradores.</td></tr>` : "";
+                    data.forEach(u => {
+                        tbodyColaboradores.innerHTML += `
+                            <tr>
+                                <td class="ps-4">${u.rut}</td>
+                                <td class="fw-semibold text-white">${u.nombreCompleto}</td>
+                                <td>${u.correo}</td>
+                                <td>${u.celular}</td>
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <a href="/Administrador/GestionarAsistencia/${u.id}" class="btn btn-sm btn-outline-info rounded-pill px-3"><i class="bi bi-calendar2-check"></i> Asistencia</a>
+                                        <a href="/Administrador/EditarUsuarios/${u.id}" class="btn btn-sm btn-outline-warning rounded-pill px-3"><i class="bi bi-pencil-square"></i> Editar</a>
+                                        <a href="/Administrador/EliminarUsuario/${u.id}" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('¿Seguro?');"><i class="bi bi-trash"></i> Eliminar</a>
+                                    </div>
+                                </td>
+                            </tr>`;
+                    });
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        if(inputBuscarEmpleados) inputBuscarEmpleados.addEventListener('input', () => setTimeout(ejecutarBusquedaUsuarios, 300));
+
+        // --- 4. LOG DE SOLICITUDES Y MODIFICACIONES (DINÁMICO EN TIEMPO REAL) ---
+        const buscadorLogs = document.getElementById('buscadorLogs');
+        const filtroRespuestaLogs = document.getElementById('filtroRespuestaLogs');
+        const tbodyLogs = document.getElementById('tbodyLogs');
+
+        async function ejecutarBusquedaLogs() {
+            const termino = buscadorLogs ? buscadorLogs.value : '';
+            const filtro = filtroRespuestaLogs ? filtroRespuestaLogs.value : '';
+
+            const params = new URLSearchParams({ termino: termino, filtroRespuesta: filtro });
+
+            try {
+                const response = await fetch(`/Administrador/ObtenerLogsDinamico?${params.toString()}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    tbodyLogs.innerHTML = data.length === 0 ? `<tr><td colspan="5" class="text-center text-muted py-5">No se encontraron registros de logs o modificaciones.</td></tr>` : "";
+
+                    data.forEach(l => {
+                        // Construimos un listado limpio para las modificaciones de cada log
+                        let modHtml = '<ul class="list-unstyled mb-0 small text-muted">';
+                        if (l.modificaciones && l.modificaciones.length > 0) {
+                            l.modificaciones.forEach(m => {
+                                modHtml += `<li><span class="text-info">${m.tabla}.${m.columna}</span>: <del class="text-danger">${m.antiguo}</del> ➔ <span class="text-success">${m.nuevo}</span></li>`;
+                            });
+                        } else {
+                            modHtml += `<span class="text-muted fst-italic">Sin modificaciones directas</span>`;
+                        }
+                        modHtml += '</ul>';
+
+                        tbodyLogs.innerHTML += `
+                            <tr>
+                                <td class="ps-4 fw-bold text-info">#${l.idSolicitud}</td>
+                                <td class="fw-semibold text-white"><i class="bi bi-person-badge text-warning me-1"></i> ${l.revisadoPor}</td>
+                                <td>${l.respuesta}</td>
+                                <td>${l.fecha}</td>
+                                <td>${modHtml}</td>
+                            </tr>`;
+                    });
+                }
+            } catch (e) { console.error("Error al cargar logs:", e); }
+        }
+
+        if(buscadorLogs) buscadorLogs.addEventListener('input', () => setTimeout(ejecutarBusquedaLogs, 300));
+        if(filtroRespuestaLogs) filtroRespuestaLogs.addEventListener('change', ejecutarBusquedaLogs);
+
+        // INICIALIZACIÓN
+        document.addEventListener("DOMContentLoaded", () => {
+            toggleFiltroFecha();
+            ejecutarBusquedaUsuarios();
+            ejecutarBusquedaLogs(); // Carga inicial de la tabla de logs
+        });
+    </script>
+}

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -16,14 +17,14 @@ namespace control_asistencia.Models
         public int IdSolicitudes { get; set; }
 
         [ForeignKey("IdSolicitudes")]
-        public virtual Solicitudes? Solicitud { get; set; }
+        public virtual Solicitudes? Solicitudes { get; set; }
 
         [Required]
         [Column("revisado_por")]
-        public int RevisadoPor { get; set; }
+        public int RevisadoPor { get; set; } // Esta es la llave foránea numérica (int)
 
         [ForeignKey("RevisadoPor")]
-        public virtual Usuarios? AdministradorRevisor { get; set; }
+        public virtual Usuarios? AdministradorRevisor { get; set; } // Esta es la navegación al objeto Usuario
 
         [Column("respuesta")]
         [StringLength(255)]
@@ -32,5 +33,8 @@ namespace control_asistencia.Models
         [Required]
         [Column("CreateAt")]
         public DateTime CreateAt { get; set; } = DateTime.Now;
+
+        // Relación con los detalles de modificación (Obligatorio para el Include)
+        public virtual ICollection<LogModificacion> LogModificaciones { get; set; } = new List<LogModificacion>();
     }
 }

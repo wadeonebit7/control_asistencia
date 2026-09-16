@@ -21,6 +21,8 @@ namespace control_asistencia.Data
         public DbSet<AjusteAsistencia>AjusteAsistencia { get; set; }
 
 
+        public DbSet<Log> Log{ get; set; }
+
 
 
 
