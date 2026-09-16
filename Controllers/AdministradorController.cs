@@ -177,39 +177,49 @@ namespace control_asistencia.Controllers
             return View(usuario);
         }
 
+
+
         [HttpPost]
-        public async Task<IActionResult> EditarUsuarios(Usuarios modelo)
+        public async Task<IActionResult> EditarUsuarios(Usuarios modeloUpdate)
         {
             var usuarioDb = await _context.Usuarios
                 .Include(u => u.Personal)
-                .FirstOrDefaultAsync(u => u.Id == modelo.Id);
+                .FirstOrDefaultAsync(u => u.Id == modeloUpdate.Id);
 
-            if (usuarioDb != null)
+            if (usuarioDb == null)
             {
-                // 1. Actualizamos datos de la tabla Personal
-                usuarioDb.Personal.Rut = modelo.Personal.Rut;
-                usuarioDb.Personal.Nombre = modelo.Personal.Nombre;
-                usuarioDb.Personal.Apellido = modelo.Personal.Apellido;
-                usuarioDb.Personal.Correo = modelo.Personal.Correo;
-                usuarioDb.Personal.Celular = modelo.Personal.Celular;
-                usuarioDb.Personal.Direccion = modelo.Personal.Direccion;
-                usuarioDb.Personal.IdRol = modelo.Personal.IdRol;
-
-                // 2. Actualizamos datos de la tabla Usuarios
-                usuarioDb.Status = modelo.Status;
-                usuarioDb.Estado = modelo.Estado;
-
-                // 3. Solo actualizamos la contraseña si se escribió una nueva
-                if (!string.IsNullOrEmpty(modelo.Password))
-                {
-                    usuarioDb.Password = modelo.Password;
-                }
-
-                await _context.SaveChangesAsync();
+                return NotFound();
             }
 
-            return RedirectToAction("Index");
+            // Actualizamos datos de la cuenta
+            usuarioDb.Status = modeloUpdate.Status;
+            usuarioDb.Estado = modeloUpdate.Estado; // El checkbox del formulario (true / false)
+
+            if (!string.IsNullOrWhiteSpace(modeloUpdate.Password))
+            {
+                usuarioDb.Password = modeloUpdate.Password;
+            }
+
+            // Actualizamos datos personales
+            if (usuarioDb.Personal != null && modeloUpdate.Personal != null)
+            {
+                usuarioDb.Personal.IdRol = modeloUpdate.Personal.IdRol;
+                usuarioDb.Personal.Rut = modeloUpdate.Personal.Rut;
+                usuarioDb.Personal.Nombre = modeloUpdate.Personal.Nombre;
+                usuarioDb.Personal.Apellido = modeloUpdate.Personal.Apellido;
+                usuarioDb.Personal.Correo = modeloUpdate.Personal.Correo;
+                usuarioDb.Personal.Celular = modeloUpdate.Personal.Celular;
+                usuarioDb.Personal.Direccion = modeloUpdate.Personal.Direccion;
+
+                // ¡Forzamos que el personal NUNCA pierda su estado activo!
+                usuarioDb.Personal.Estado = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction("Index", "Administrador");
         }
+
+
 
         // =======================================================
         // 6. ELIMINAR USUARIO (Desactivación Lógica)
@@ -254,8 +264,6 @@ namespace control_asistencia.Controllers
 
 
 
-
-
         // =======================================================
         // ENDPOINT: LOGS DINÁMICOS CON FILTROS (JSON)
         // =======================================================
@@ -274,8 +282,9 @@ namespace control_asistencia.Controllers
             {
                 termino = termino.Trim();
                 query = query.Where(l => l.Respuesta.Contains(termino) ||
-                                         l.AdministradorRevisor.Personal.Nombre.Contains(termino) ||
-                                         l.AdministradorRevisor.Personal.Apellido.Contains(termino) ||
+                                         (l.AdministradorRevisor != null && l.AdministradorRevisor.Personal != null &&
+                                          (l.AdministradorRevisor.Personal.Nombre.Contains(termino) ||
+                                           l.AdministradorRevisor.Personal.Apellido.Contains(termino))) ||
                                          l.IdSolicitudes.ToString().Contains(termino));
             }
 
@@ -303,6 +312,42 @@ namespace control_asistencia.Controllers
 
             return Json(resultados);
         }
+
+
+        // =======================================================
+        // ENDPOINT: ACTUALIZAR UNA FILA DE ASISTENCIA (AJAX)
+        // =======================================================
+        [HttpPost]
+        public async Task<IActionResult> ActualizarFilaAsistencia(int idAsistencia, TimeSpan horaEntrada, TimeSpan horaSalida, string estadoEntrada, string estadoSalida)
+        {
+            var asistenciaDb = await _context.Asistencia.FindAsync(idAsistencia);
+
+            if (asistenciaDb != null)
+            {
+                // Actualizamos los tiempos
+                asistenciaDb.HoraEntradaReal = horaEntrada;
+                asistenciaDb.HoraSalidaReal = horaSalida;
+
+                // Actualizamos los estados
+                asistenciaDb.EstadoEntrada = estadoEntrada;
+                asistenciaDb.EstadoSalida = estadoSalida;
+
+                // Si quisieras actualizar las "Horas Trabajadas" en DB directamente, podrías hacerlo aquí
+                // asistenciaDb.HorasTrabajadas = horaSalida.Subtract(horaEntrada);
+
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true });
+            }
+
+            return Json(new { success = false });
+        }
+
+
+
+
+
+
 
 
     }

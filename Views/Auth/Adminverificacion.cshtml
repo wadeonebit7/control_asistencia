@@ -1,0 +1,158 @@
+﻿@{
+    Layout = null;
+    ViewData["Title"] = "Verificación de Administrador";
+    var errorMessage = ViewBag.Error ?? TempData["Error"];
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+            body {
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+                min-height: 100vh;
+                color: #e2e8f0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0;
+                overflow: hidden;
+            }
+
+            .verification-card {
+                background: rgba(30, 41, 59, 0.85);
+                border: 1px solid rgba(56, 189, 248, 0.2);
+                border-radius: 20px;
+                backdrop-filter: blur(12px);
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+                max-width: 440px;
+                width: 100%;
+                padding: 30px;
+            }
+
+            .custom-input {
+                background: rgba(15, 23, 42, 0.8) !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                color: #f8fafc !important;
+                border-radius: 10px;
+                padding: 12px 14px;
+                font-size: 1rem;
+            }
+
+                .custom-input:focus {
+                    border-color: #38bdf8 !important;
+                    box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.25) !important;
+                }
+
+            .custom-addon {
+                background: rgba(15, 23, 42, 0.9) !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                color: #38bdf8 !important;
+                border-top-left-radius: 10px;
+                border-bottom-left-radius: 10px;
+                padding: 0 16px;
+            }
+
+            .btn-verify {
+                background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+                border: none;
+                border-radius: 10px;
+                padding: 12px 20px;
+                font-weight: 600;
+                color: #ffffff;
+                transition: all 0.3s ease;
+            }
+
+                .btn-verify:hover {
+                    background: linear-gradient(135deg, #0369a1 100%, #075985 100%);
+                    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);
+                }
+
+            .form-label-custom {
+                color: #cbd5e1;
+                font-size: 0.9rem;
+                font-weight: 500;
+            }
+    </style>
+</head>
+<body>
+
+    <div class="container d-flex justify-content-center align-items-center">
+        <div class="card verification-card">
+            <div class="card-body">
+
+                <div class="text-center mb-4">
+                    <div class="mb-3">
+                        <i class="bi bi-shield-lock-fill p-3 rounded-circle" style="font-size: 2.5rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1);"></i>
+                    </div>
+                    <h3 class="text-white fw-bold mb-1">ACCESO RESTRINGIDO</h3>
+                    <p class="text-muted small">Terminal protegida. Ingrese credenciales de Administrador.</p>
+                </div>
+
+                @if (errorMessage != null)
+                {
+                    <div class="alert alert-danger d-flex align-items-center mb-4 p-3" role="alert" style="border-radius: 12px; background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5;">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                        <div style="font-size: 0.9rem; line-height: 1.3;">
+                            @errorMessage
+                        </div>
+                    </div>
+                }
+
+                <form asp-controller="Auth" asp-action="VerificarAdminLogin" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <label class="form-label-custom mb-1">Correo Electrónico</label>
+                        <div class="input-group">
+                            <span class="input-group-text custom-addon"><i class="bi bi-envelope-fill"></i></span>
+                            <input name="correo" type="email" class="form-control custom-input" placeholder="admin@empresa.com" required autocomplete="off" />
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-custom mb-1">Contraseña</label>
+                        <div class="input-group">
+                            <span class="input-group-text custom-addon"><i class="bi bi-key-fill"></i></span>
+                            <input name="password" type="password" class="form-control custom-input" placeholder="••••••••" required autocomplete="off" />
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-verify shadow-sm">
+                            <i class="bi bi-unlock-fill me-2"></i> Desbloquear Panel
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+            // --- TEMPORIZADOR DE SEGURIDAD (20 SEGUNDOS) ---
+            let timeoutInSeconds = 20;
+            let inactivityTimer = setTimeout(function() {
+                // Devuelve automáticamente al modo de fichaje si transcurren los 20 segundos sin acción
+                window.location.href = '@Url.Action("LogoutAsistencia", "Auth")';
+            }, timeoutInSeconds * 1000);
+
+            // Reinicia el contador si el administrador interactúa (mueve el mouse o presiona teclas)
+            function resetTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(function() {
+                    window.location.href = '@Url.Action("LogoutAsistencia", "Auth")';
+                }, timeoutInSeconds * 1000);
+            }
+
+            window.addEventListener('mousemove', resetTimer);
+            window.addEventListener('keypress', resetTimer);
+            window.addEventListener('click', resetTimer);
+    </script>
+</body>
+</html>

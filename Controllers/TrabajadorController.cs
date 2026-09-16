@@ -10,59 +10,41 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Tesseract;
 
-
 namespace control_asistencia.Controllers
 {
-    [Authorize(Roles = "EMPLEADO")]
     [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public class TrabajadorController : Controller
     {
-
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _env;
 
-        // Inyección de dependencias para conectar con la base de datos y obtener rutas físicas
         public TrabajadorController(ApplicationDbContext context, IWebHostEnvironment env)
         {
             _context = context;
             _env = env;
         }
 
-
-
-
-
-
-
+        [Authorize(Roles = "EMPLEADO")]
         [HttpGet]
         public async Task<IActionResult> Index(int? mes)
         {
-            // 1. ID del usuario logueado actual (ejemplo temporal)
             int idUsuarioLogueado = 1;
-
-            // 2. Si no eligen mes, tomamos el mes actual por defecto
             int mesConsulta = mes ?? DateTime.Now.Month;
 
-            // 3. Consultamos la base de datos filtrando por usuario y mes
             var registrosAsistencia = await _context.Asistencia
                 .Where(a => a.IdUsuario == idUsuarioLogueado && a.CreateAt.Month == mesConsulta)
                 .OrderByDescending(a => a.CreateAt)
                 .ToListAsync();
 
-            // 4. Mandamos los datos a la vista
             return View(registrosAsistencia);
         }
 
-
-
-
-
+        // Quitamos el ValidateAntiForgeryToken aquí para evitar el Error 400 en la terminal pública
+        [AllowAnonymous]
         [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
         {
             if (string.IsNullOrEmpty(claveDinamica))
@@ -82,10 +64,14 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            TempData["IdUsuario"] = usuario.Id;
+            TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
+            TempData.Keep("IdUsuario");
+            TempData.Keep("UsuarioLogueado");
+
             var fechaHoy = DateTime.Now.Date;
             var horaActual = DateTime.Now.TimeOfDay;
 
-            // 1. Obtenemos la configuración de asistencia activa desde la Base de Datos
             var jornadaHabilitada = await _context.habilitar_asistencia
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
@@ -95,77 +81,30 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            var asistenciaExistente = await _context.Asistencia
-                .FirstOrDefaultAsync(a => a.IdUsuario == usuario.Id && a.IdHabilitarAsistencia == jornadaHabilitada.Id);
-
-            // =======================================================
-            // 2. ENRUTAMIENTO CON HORA FIJA DE CAMBIO A LAS 14:00 (O 2 PM)
-            // =======================================================
-            TimeSpan horaEntradaDB = jornadaHabilitada.HoraEntrada;
-            TimeSpan horaSalidaDB = jornadaHabilitada.HoraSalida;
-
-            // Margen de apertura (2 horas antes de la entrada oficial) y cierre (3 horas después de la salida oficial)
-            TimeSpan inicioSistema = horaEntradaDB.Subtract(new TimeSpan(2, 0, 0));
-            if (inicioSistema < TimeSpan.Zero) inicioSistema = TimeSpan.Zero;
-
-            TimeSpan cierreSistema = horaSalidaDB.Add(new TimeSpan(3, 0, 0));
-            if (cierreSistema > new TimeSpan(23, 59, 59)) cierreSistema = new TimeSpan(23, 59, 59);
-
-            // Hora fija establecida en las 14:00 hrs (2 PM) para activar el modo salida
             TimeSpan cambioTurnoFijo = new TimeSpan(14, 0, 0);
 
-            // Validar si está fuera del horario operativo calculado
-            if (horaActual < inicioSistema || horaActual > cierreSistema)
+            if (horaActual >= cambioTurnoFijo)
             {
-                TempData["Error"] = $"Fuera de horario operativo. El turno hoy opera entre las {inicioSistema:hh\\:mm} y las {cierreSistema:hh\\:mm}.";
-                return RedirectToAction("LogoutAsistencia", "Auth");
-            }
-
-            // 3. Evaluar si corresponde a Salida o Entrada usando la hora fija de las 14:00 hrs
-            if (horaActual >= cambioTurnoFijo && horaActual <= cierreSistema)
-            {
-                // === MODO SALIDA (A partir de las 14:00 hrs) ===
-
-                if (asistenciaExistente == null || asistenciaExistente.EstadoEntrada == "PENDIENTE")
-                {
-                    TempData["Error"] = "ACCESO DENEGADO: No tienes registro de entrada de hoy. Comunícate con Recursos Humanos.";
-                    return RedirectToAction("LogoutAsistencia", "Auth");
-                }
-
-                if (asistenciaExistente.EstadoSalida != "PENDIENTE")
-                {
-                    TempData["Error"] = "Tu salida ya fue registrada anteriormente hoy. ¡Que tengas un buen descanso!";
-                    return RedirectToAction("LogoutAsistencia", "Auth");
-                }
-
-                TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
-                TempData["IdUsuario"] = usuario.Id;
                 return RedirectToAction("SalidaAsistencia");
             }
             else
             {
-                // === MODO ENTRADA (Hasta antes de las 14:00 hrs) ===
-
-                if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
-                {
-                    TempData["Error"] = "Ya registraste tu entrada. El cambio a modo salida será a partir de las 14:00 hrs.";
-                    return RedirectToAction("LogoutAsistencia", "Auth");
-                }
-
-                TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
-                TempData["IdUsuario"] = usuario.Id;
                 return RedirectToAction("EntradaAsistencia");
             }
         }
 
 
+
+
+
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult EntradaAsistencia()
         {
             return View();
         }
 
-        
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult SalidaAsistencia()
         {
@@ -176,18 +115,18 @@ namespace control_asistencia.Controllers
 
 
 
+        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GuardarEntrada(bool confirmacion)
         {
-            // 1. Validar que el empleado haya marcado el checkbox
             if (!confirmacion)
             {
                 TempData["Error"] = "Debe marcar la casilla para confirmar su entrada.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // 2. Rescatar el ID del usuario desde TempData de forma correcta y segura
             int idUsuarioLogueado = 0;
             if (TempData["IdUsuario"] != null)
             {
@@ -197,49 +136,42 @@ namespace control_asistencia.Controllers
             else
             {
                 TempData["Error"] = "Su sesión ha expirado. Por favor, vuelva a ingresar su ticket.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // 3. Obtenemos la fecha actual y la hora exacta del marcaje
             var fechaHoy = DateTime.Now.Date;
             var horaActual = DateTime.Now.TimeOfDay;
 
-            // 4. Buscamos si el Administrador habilitó la jornada de hoy en la BD
             var jornadaHabilitada = await _context.habilitar_asistencia
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
             if (jornadaHabilitada == null)
             {
                 TempData["Error"] = "La asistencia para hoy no ha sido habilitada por administración.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // 5. Verificamos si el empleado ya registró su entrada hoy (evitar duplicados)
             var asistenciaExistente = await _context.Asistencia
                 .FirstOrDefaultAsync(a => a.IdUsuario == idUsuarioLogueado && a.IdHabilitarAsistencia == jornadaHabilitada.Id);
 
             if (asistenciaExistente != null && asistenciaExistente.EstadoEntrada != "PENDIENTE")
             {
                 TempData["Error"] = "Usted ya registró su entrada el día de hoy.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // ==========================================================
-            // 6. EVALUACIÓN DE ENTRADA CON 15 MINUTOS DE TOLERANCIA
-            // ==========================================================
             string estadoEntradaCalculado = "MARCADA";
-
-            // Sumamos 15 minutos a la hora de entrada oficial configurada por administración
             TimeSpan toleranciaAtraso = new TimeSpan(0, 15, 0);
             TimeSpan horaMaximaSinAtraso = jornadaHabilitada.HoraEntrada.Add(toleranciaAtraso);
 
-            // Si llega después de los 15 minutos de gracia, se marca como ATRASADO
             if (horaActual > horaMaximaSinAtraso)
             {
                 estadoEntradaCalculado = "ATRASADO";
             }
 
-            // 7. Hacemos el INSERT o UPDATE en la tabla Asistencia
             if (asistenciaExistente == null)
             {
                 var nuevaAsistencia = new Asistencia
@@ -268,6 +200,7 @@ namespace control_asistencia.Controllers
             await _context.SaveChangesAsync();
 
             TempData["Mensaje"] = "¡Entrada registrada correctamente!";
+            TempData.Keep("Mensaje");
             return RedirectToAction("LogoutAsistencia", "Auth");
         }
 
@@ -275,6 +208,7 @@ namespace control_asistencia.Controllers
 
 
 
+        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GuardarSalida(bool confirmacion)
@@ -282,6 +216,7 @@ namespace control_asistencia.Controllers
             if (!confirmacion)
             {
                 TempData["Error"] = "Debe marcar la casilla para confirmar su salida.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
@@ -294,6 +229,7 @@ namespace control_asistencia.Controllers
             else
             {
                 TempData["Error"] = "Su sesión ha expirado. Por favor, vuelva a ingresar su ticket.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
@@ -306,6 +242,7 @@ namespace control_asistencia.Controllers
             if (jornadaHabilitada == null)
             {
                 TempData["Error"] = "La asistencia para hoy no ha sido habilitada por administración.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
@@ -315,36 +252,35 @@ namespace control_asistencia.Controllers
             if (asistenciaExistente == null)
             {
                 TempData["Error"] = "No tienes un registro de entrada previo para hoy. Por favor, comunícate con Recursos Humanos.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
             if (asistenciaExistente.EstadoSalida != "PENDIENTE")
             {
                 TempData["Error"] = "Tu salida ya fue registrada anteriormente hoy. Por seguridad, hemos cerrado esta sesión.";
+                TempData.Keep("Error");
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            string estadoSalidaCalculado = "MARCADA";
+            // AQUÍ PUEDES VALIDAR TU RESTRICCIÓN DE HORARIO SI LO DESEAS:
+            // Por ejemplo, si quieres bloquear si intenta salir antes de tiempo o fuera de rango:
+            // TimeSpan tolerancia = new TimeSpan(0, 15, 0);
+            // if (horaActual < jornadaHabilitada.HoraSalida.Subtract(tolerancia)) { ... }
 
-            // Tolerancia de 10 minutos para no castigar salidas justas
-            TimeSpan tolerancia = new TimeSpan(0, 15, 0);
-            TimeSpan horaMinimaAceptable = jornadaHabilitada.HoraSalida.Subtract(tolerancia);
+            string estadoSalidaCalculado = "MARCADA";
+            TimeSpan toleranciaSalida = new TimeSpan(0, 15, 0);
+            TimeSpan horaMinimaAceptable = jornadaHabilitada.HoraSalida.Subtract(toleranciaSalida);
 
             if (horaActual < horaMinimaAceptable)
             {
                 estadoSalidaCalculado = "ANTICIPADO";
             }
 
-            // ==========================================================
-            // NUEVA LÓGICA: CÁLCULO DE HORAS TOTALES
-            // ==========================================================
             TimeSpan tiempoTotalEnEmpresa = horaActual.Subtract(asistenciaExistente.HoraEntradaReal);
 
             asistenciaExistente.HoraSalidaReal = horaActual;
             asistenciaExistente.EstadoSalida = estadoSalidaCalculado;
-
-            // Guardamos la diferencia en la base de datos (Si Recursos Humanos después define 
-            // que a las 'HorasTrabajadas' se le debe restar 1 hora de colación, se haría el descuento aquí)
             asistenciaExistente.HorasReales = tiempoTotalEnEmpresa;
             asistenciaExistente.HorasTrabajadas = tiempoTotalEnEmpresa;
 
@@ -355,6 +291,7 @@ namespace control_asistencia.Controllers
             TempData.Remove("UsuarioLogueado");
 
             TempData["Mensaje"] = "¡Salida registrada correctamente!";
+            TempData.Keep("Mensaje");
             return RedirectToAction("LogoutAsistencia", "Auth");
         }
 
@@ -526,6 +463,7 @@ namespace control_asistencia.Controllers
 
 
 
+
         [HttpGet]
         public async Task<IActionResult> ObtenerClaveDinamicaActual()
         {
@@ -537,7 +475,7 @@ namespace control_asistencia.Controllers
             }
             else
             {
-                idUsuarioLogueado = 1; // Fallback para pruebas
+                idUsuarioLogueado = 1;
             }
 
             var usuario = await _context.Usuarios
@@ -549,9 +487,7 @@ namespace control_asistencia.Controllers
                 return Json(new { claveDinamica = "CARGANDO", segundosRestantes = 60 });
             }
 
-            // Calcular cuántos segundos faltan exactamente para que termine el minuto actual en el servidor
-            var now = DateTime.Now;
-            int segundosRestantes = 60 - now.Second;
+            int segundosRestantes = 60 - DateTime.Now.Second;
 
             return Json(new
             {
@@ -559,11 +495,5 @@ namespace control_asistencia.Controllers
                 segundosRestantes = segundosRestantes
             });
         }
-
-
-
-
-
     }
-
 }

@@ -5,6 +5,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
+using System;
 
 namespace control_asistencia.Controllers
 {
@@ -39,15 +42,12 @@ namespace control_asistencia.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(string correo, string password)
         {
-            // Validamos que los campos no vengan vacíos
             if (string.IsNullOrEmpty(correo) || string.IsNullOrEmpty(password))
             {
                 ViewBag.Error = "Por favor, complete todos los campos.";
                 return View("Index");
             }
 
-            // Consulta ajustada: Como eliminamos el correo de la tabla Usuarios, 
-            // ahora accedemos a él a través de la relación u.Personal.Correo
             var usuario = await _context.Usuarios
                 .Include(u => u.Personal)
                     .ThenInclude(p => p.Rol)
@@ -58,27 +58,23 @@ namespace control_asistencia.Controllers
                 string nombreCompleto = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
                 string nombreRol = usuario.Personal.Rol.Nombre;
 
-                // 1. CREACIÓN DE CLAIMS (Carnet de identidad del usuario en el sistema)
                 var claims = new List<Claim>
                 {
                     new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
                     new Claim(ClaimTypes.Name, nombreCompleto),
                     new Claim(ClaimTypes.Role, nombreRol),
-                    new Claim("IdPersonal", usuario.IdPersonal.ToString()) // Guardamos esto porque nos servirá en RRHH
+                    new Claim("IdPersonal", usuario.IdPersonal.ToString())
                 };
 
-                // 2. CREACIÓN DE LA COOKIE
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
 
-                // 3. REDIRECCIÓN
                 if (nombreRol == "ADMIN") return RedirectToAction("Index", "Administrador");
                 else if (nombreRol == "EMPLEADO") return RedirectToAction("Index", "Trabajador");
-                else if (nombreRol == "RRHH") return RedirectToAction("Index", "RecursosHumanos"); // Descomentado
+                else if (nombreRol == "RRHH") return RedirectToAction("Index", "RecursosHumanos");
                 else return RedirectToAction("Index", "Auth");
             }
 
-            // Si las credenciales son incorrectas, recarga el formulario de Login con el error
             ViewBag.Error = "Correo o contraseña incorrectos.";
             return View("Index");
         }
@@ -88,21 +84,9 @@ namespace control_asistencia.Controllers
         {
             // Esto destruye la cookie de autenticación del navegador por completo
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-
-            // Opcional: Limpiar también los mensajes temporales por si acaso
             TempData.Clear();
-
-            // Lo mandamos de vuelta al Login
             return RedirectToAction("Index", "Auth");
         }
-
-
-
-
-
-
-
-
 
 
 
@@ -110,6 +94,19 @@ namespace control_asistencia.Controllers
         [HttpGet]
         public async Task<IActionResult> LogoutAsistencia()
         {
+            // Limpiamos sesión previa por seguridad en la terminal
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+            // Rescatamos los mensajes de TempData por si vienen de un intento de marcaje
+            if (TempData["Error"] != null)
+            {
+                ViewBag.Error = TempData["Error"];
+            }
+            if (TempData["Mensaje"] != null)
+            {
+                ViewBag.MensajeExito = TempData["Mensaje"];
+            }
+
             var fechaHoy = DateTime.Now.Date;
             var horaActual = DateTime.Now.TimeOfDay;
 
@@ -120,7 +117,6 @@ namespace control_asistencia.Controllers
 
             if (jornada != null)
             {
-                // Replicamos la misma lógica de los márgenes de tiempo del TrabajadorController
                 TimeSpan horaEntradaBD = jornada.HoraEntrada;
                 TimeSpan horaSalidaBD = jornada.HoraSalida;
 
@@ -130,17 +126,64 @@ namespace control_asistencia.Controllers
                 TimeSpan cierreSistema = horaSalidaBD.Add(new TimeSpan(3, 0, 0));
                 if (cierreSistema > new TimeSpan(23, 59, 59)) cierreSistema = new TimeSpan(23, 59, 59);
 
-                // Si la hora actual está dentro de los límites, abrimos el sistema
                 if (horaActual >= inicioEntrada && horaActual <= cierreSistema)
                 {
                     sistemaAbierto = true;
                 }
             }
 
-            // Le pasamos al HTML el resultado real considerando FECHA y HORA
             ViewBag.JornadaHabilitada = sistemaAbierto;
 
             return View();
+        }
+
+
+        [HttpGet]
+        public async Task<IActionResult> AdminVerificacion()
+        {
+            // Limpiamos la sesión al entrar para forzar la introducción de credenciales
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData.Clear();
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerificarAdminLogin(string correo, string password)
+        {
+            if (string.IsNullOrEmpty(correo) || string.IsNullOrEmpty(password))
+            {
+                TempData["Error"] = "Por favor, complete todos los campos de acceso.";
+                return RedirectToAction("AdminVerificacion");
+            }
+
+            var usuario = await _context.Usuarios
+                .Include(u => u.Personal)
+                    .ThenInclude(p => p.Rol)
+                .FirstOrDefaultAsync(u => u.Personal.Correo == correo && u.Password == password && u.Estado == true);
+
+            // Verificamos estrictamente que exista y que su rol sea exclusivamente ADMIN
+            if (usuario != null && usuario.Personal.Rol.Nombre == "ADMIN")
+            {
+                string nombreCompleto = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
+
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+                    new Claim(ClaimTypes.Name, nombreCompleto),
+                    new Claim(ClaimTypes.Role, "ADMIN"),
+                    new Claim("IdPersonal", usuario.IdPersonal.ToString())
+                };
+
+                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+
+                return RedirectToAction("Index", "Administrador");
+            }
+
+            // Si falla o no es admin, lo devolvemos a la pantalla de verificación aislada
+            TempData["Error"] = "Credenciales incorrectas o permisos de administrador insuficientes.";
+            return RedirectToAction("AdminVerificacion");
         }
     }
 }

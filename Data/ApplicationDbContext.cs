@@ -23,6 +23,8 @@ namespace control_asistencia.Data
 
         public DbSet<Log> Log{ get; set; }
 
+       
+
 
 
 

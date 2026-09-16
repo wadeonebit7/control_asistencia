@@ -1,0 +1,249 @@
+﻿@model control_asistencia.Models.Solicitudes
+
+@{
+    ViewData["Title"] = "Revisar Solicitud - RRHH";
+    var licencia = ViewBag.LicenciaMedica as control_asistencia.Models.LicenciaMedica;
+    var ajuste = ViewBag.AjusteAsistencia as control_asistencia.Models.AjusteAsistencia;
+}
+
+<style>
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
+        color: #e2e8f0 !important;
+        min-height: 100vh;
+    }
+
+    .dashboard-card {
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(56, 189, 248, 0.15);
+        border-radius: 16px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .info-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #94a3b8;
+        font-weight: 700;
+    }
+
+    .info-value {
+        font-size: 0.95rem;
+        color: #f8fafc;
+        font-weight: 500;
+    }
+
+    .ocr-box {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        border-radius: 10px;
+        padding: 8px 12px;
+    }
+
+    .custom-textarea {
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #f8fafc !important;
+        border-radius: 10px;
+    }
+
+        .custom-textarea:focus {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.25) !important;
+            background: rgba(15, 23, 42, 0.9) !important;
+        }
+</style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<div class="container py-4">
+    <!-- Encabezado con Botón de Retorno -->
+    <div class="dashboard-card p-4 mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="d-flex align-items-center">
+            <div class="p-3 rounded-circle bg-info bg-opacity-10 text-info me-3 d-none d-sm-flex align-items-center justify-content-center" style="width: 55px; height: 55px;">
+                <i class="bi bi-file-earmark-medical fs-4"></i>
+            </div>
+            <div>
+                <h3 class="text-white fw-bold mb-1">Revisión de Solicitud #@Model.Id</h3>
+                <p class="text-muted mb-0 small">Verificación de datos extraídos por OCR frente al documento real.</p>
+            </div>
+        </div>
+        <div>
+            <a href="@Url.Action("Index", "RecursosHumanos")" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Columna Izquierda: Datos, OCR Dinámico y Resolución -->
+        <div class="col-lg-5">
+            <!-- Datos del Trabajador -->
+            <div class="dashboard-card p-4 mb-4">
+                <h5 class="text-white fw-bold mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+                    <i class="bi bi-person-badge text-info me-2"></i> Trabajador Solicitante
+                </h5>
+                <div class="row g-2">
+                    <div class="col-12">
+                        <span class="info-label">Nombre Completo</span>
+                        <div class="info-value">@Model.Usuario?.Personal?.Nombre @Model.Usuario?.Personal?.Apellido</div>
+                    </div>
+                    <div class="col-6">
+                        <span class="info-label">RUT</span>
+                        <div class="info-value font-monospace">@Model.Usuario?.Personal?.Rut</div>
+                    </div>
+                    <div class="col-6">
+                        <span class="info-label">Fecha Envío</span>
+                        <div class="info-value text-muted">@Model.CreateAt.ToString("dd/MM/yyyy HH:mm")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Dinámico de Datos OCR según la Tabla Relacionada -->
+            <div class="dashboard-card p-4 mb-4">
+                <h5 class="text-white fw-bold mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+                    <i class="bi bi-cpu text-info me-2"></i> Datos Registrados por OCR
+                </h5>
+
+                <div class="mb-3">
+                    <span class="info-label">Tipo de Trámite</span>
+                    <div class="mt-1">
+                        @if (Model.TipoSolicitud.ToString() == "LICENCIA_MEDICA")
+                        {
+                            <span class="badge bg-primary text-white px-3 py-1.5 rounded-pill fw-semibold"><i class="bi bi-heart-pulse-fill me-1"></i>Licencia Médica</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-info text-dark px-3 py-1.5 rounded-pill fw-semibold"><i class="bi bi-calendar2-check-fill me-1"></i>Ajuste de Asistencia</span>
+                        }
+                    </div>
+                </div>
+
+                @if (Model.TipoSolicitud.ToString() == "LICENCIA_MEDICA" && licencia != null)
+                {
+                    <!-- Datos específicos de la tabla licencia_medica -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <span class="info-label">Folio</span>
+                            <div class="ocr-box info-value font-monospace">@licencia.Folio</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Otorgamiento</span>
+                            <div class="ocr-box info-value">@licencia.FechaOtorgamiento.ToString("dd-MM-yyyy")</div>
+                        </div>
+                        <div class="col-12">
+                            <span class="info-label">Profesional Emisor</span>
+                            <div class="ocr-box info-value">@licencia.Profesional</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Fecha Inicio</span>
+                            <div class="ocr-box info-value">@licencia.FechaInicio.ToString("dd-MM-yyyy")</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Fecha Término</span>
+                            <div class="ocr-box info-value">@licencia.FechaTermino.ToString("dd-MM-yyyy")</div>
+                        </div>
+                        <div class="col-12">
+                            <span class="info-label">Tipificación</span>
+                            <div class="ocr-box info-value">@licencia.Tipificacion</div>
+                        </div>
+                    </div>
+                }
+                else if (ajuste != null)
+                {
+                    <!-- Datos específicos de la tabla ajuste_asistencia -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <span class="info-label">Fecha Afectada</span>
+                            <div class="ocr-box info-value">@ajuste.FechaAfectada.ToString("dd-MM-yyyy")</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Tipo Incidencia</span>
+                            <div class="ocr-box info-value">@ajuste.TipoIncidencia</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Hora Entrada</span>
+                            <div class="ocr-box info-value font-monospace">@ajuste.HoraEntrada</div>
+                        </div>
+                        <div class="col-6">
+                            <span class="info-label">Hora Salida</span>
+                            <div class="ocr-box info-value font-monospace">@ajuste.HoraSalida</div>
+                        </div>
+                        <div class="col-12">
+                            <span class="info-label">Emitido Por</span>
+                            <div class="ocr-box info-value">@ajuste.EmitidoPor</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted small fst-italic mb-3">No se encontraron registros asociados en la base de datos para este trámite.</div>
+                }
+
+                <div class="mb-2">
+                    <span class="info-label">Motivo o Detalle Indicado</span>
+                    <div class="info-value bg-dark bg-opacity-50 p-2 rounded-3 border border-secondary border-opacity-25" style="max-height: 80px; overflow-y: auto;">
+                        @Model.Motivo
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Resolución de Recursos Humanos -->
+            <div class="dashboard-card p-4">
+                <h5 class="text-white fw-bold mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+                    <i class="bi bi-chat-square-text-fill text-info me-2"></i> Respuesta de Recursos Humanos
+                </h5>
+
+                <form asp-action="GestionarSolicitud" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-semibold">Comentarios u Observación</label>
+                        <textarea name="respuestaRrgg" class="form-control custom-textarea" rows="3" placeholder="Escribe el motivo de la aprobación o rechazo..."></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" name="accion" value="APROBAR" class="btn btn-success fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Aprobar esta solicitud?');">
+                            <i class="bi bi-check-circle-fill me-1"></i> Aprobar Solicitud
+                        </button>
+                        <button type="submit" name="accion" value="RECHAZAR" class="btn btn-outline-danger fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Rechazar esta solicitud?');">
+                            <i class="bi bi-x-circle-fill me-1"></i> Rechazar Solicitud
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Visor del Documento PDF Real -->
+        <div class="col-lg-7">
+            <div class="dashboard-card p-4 h-100 d-flex flex-column">
+                <h5 class="text-white fw-bold mb-3 border-bottom border-secondary border-opacity-25 pb-2 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i> Vista Previa del Documento Real</span>
+                    @if (!string.IsNullOrEmpty(Model.RutaDocumento))
+                    {
+                        <a href="@Url.Content(Model.RutaDocumento)" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Abrir en pestaña
+                        </a>
+                    }
+                </h5>
+
+                <div class="flex-grow-1 bg-dark rounded-3 overflow-hidden border border-secondary border-opacity-25 d-flex align-items-center justify-content-center" style="min-height: 700px;">
+                    @if (!string.IsNullOrEmpty(Model.RutaDocumento))
+                    {
+                        <iframe src="@Url.Content(Model.RutaDocumento)" width="100%" height="100%" style="border: none; min-height: 700px;"></iframe>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted p-5">
+                            <i class="bi bi-file-earmark-excel fs-1 d-block mb-3 text-secondary"></i>
+                            <p class="mb-0">No se ha encontrado el documento de respaldo asociado.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

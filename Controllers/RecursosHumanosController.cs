@@ -159,5 +159,68 @@ namespace control_asistencia.Controllers
             }
             return RedirectToAction(nameof(Personal));
         }
+
+
+
+
+
+
+        [HttpGet]
+        public async Task<IActionResult> RevisarSolicitud(int id)
+        {
+            // Traemos la solicitud incluyendo al usuario y su personal
+            var solicitud = await _context.Solicitudes
+                .Include(s => s.Usuario)
+                    .ThenInclude(u => u.Personal)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (solicitud == null)
+            {
+                return NotFound();
+            }
+
+            // Buscamos de forma directa los datos OCR específicos según la relación de la base de datos
+            ViewBag.LicenciaMedica = await _context.LicenciaMedica
+                .FirstOrDefaultAsync(l => l.IdSolicitudes == id);
+
+            ViewBag.AjusteAsistencia = await _context.AjusteAsistencia
+                .FirstOrDefaultAsync(a => a.IdSolicitudes == id);
+
+            return View(solicitud);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GestionarSolicitud(int id, string accion, string respuestaRrgg)
+        {
+            var solicitud = await _context.Solicitudes
+                .Include(s => s.Usuario)
+                    .ThenInclude(u => u.Personal)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (solicitud == null) return NotFound();
+
+            if (accion == "APROBAR")
+            {
+                solicitud.EstadoSolicitud = "APROBADO";
+                TempData["Mensaje"] = "La solicitud ha sido APROBADA exitosamente.";
+            }
+            else if (accion == "RECHAZAR")
+            {
+                solicitud.EstadoSolicitud = "RECHAZADO";
+                TempData["Mensaje"] = "La solicitud ha sido RECHAZADA.";
+            }
+
+            // Si tu modelo Solicitudes tiene un campo de respuesta/observación, guárdalo aquí:
+            // solicitud.RespuestaRrgg = respuestaRrgg;
+
+            _context.Update(solicitud);
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction(nameof(Index));
+        }
+
+
+
     }
 }

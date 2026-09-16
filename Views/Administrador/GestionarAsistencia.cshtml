@@ -1,5 +1,280 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
+﻿@model control_asistencia.Models.Usuarios
+
 @{
+    ViewData["Title"] = "Gestión de Asistencia: " + (Model.Personal?.Nombre ?? "");
+    var historial = ViewBag.Historial as IEnumerable<control_asistencia.Models.Asistencia> ?? Enumerable.Empty<control_asistencia.Models.Asistencia>();
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<style>
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+        font-size: 1.05rem;
+    }
+
+    .dashboard-card {
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(56, 189, 248, 0.15);
+        border-radius: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .custom-input, .custom-select {
+        background: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid rgba(56, 189, 248, 0.2) !important;
+        color: #f8fafc !important;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 1rem;
+    }
+
+    .table-custom {
+        color: #e2e8f0;
+        background: transparent;
+        font-size: 1rem;
+    }
+
+        .table-custom th {
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #38bdf8;
+            font-weight: 600;
+        }
+
+        .table-custom td {
+            border-color: rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+        }
+</style>
+
+<div class="container-fluid py-4" style="max-width: 1400px;">
+    <!-- CABECERA -->
+    <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
+        <div>
+            <h3 class="text-white fw-bold mb-1">
+                <i class="bi bi-calendar-check text-info me-2"></i>Asistencia Individual
+            </h3>
+            <p class="text-muted mb-0">Gestionando registros de: <strong class="text-white">@Model.Personal?.Nombre @Model.Personal?.Apellido</strong> (RUT: @Model.Personal?.Rut)</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Index", "Administrador")" class="btn btn-outline-info rounded-pill px-4 py-2">
+                <i class="bi bi-arrow-left me-1"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- FILTRO Y ESTADÍSTICAS -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="dashboard-card p-4 h-100 d-flex flex-column justify-content-center">
+                <label class="form-label text-info fw-semibold mb-2"><i class="bi bi-funnel me-1"></i> Filtrar por Mes</label>
+                <select id="filtroMes" class="form-select custom-select fs-5" onchange="filtrarYCalcular()">
+                    <option value="0">Todos los registros históricos</option>
+                    @for (int i = 1; i <= 12; i++)
+                    {
+                        <option value="@i" selected="@(DateTime.Now.Month == i)">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(i).ToUpper()</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="dashboard-card p-4 h-100 d-flex align-items-center justify-content-between">
+                <div>
+                    <h5 class="text-muted mb-1">Total Horas Trabajadas (Mes Seleccionado)</h5>
+                    <h2 class="text-white fw-bold mb-0" id="totalHorasMes">00:00 hrs</h2>
+                </div>
+                <div class="text-end text-info" style="font-size: 3rem;">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLA DE REGISTROS EDITABLES -->
+    <div class="dashboard-card p-4">
+        <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+            <table class="table table-custom align-middle mb-0">
+                <thead class="sticky-top" style="background: #1e293b;">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Entrada Real</th>
+                        <th>Estado Entrada</th>
+                        <th>Salida Real</th>
+                        <th>Estado Salida</th>
+                        <th class="text-center">Hrs Trabajadas</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaAsistencia">
+                    @foreach (var item in historial)
+                    {
+                        TimeSpan horasCalc = item.HoraSalidaReal.Subtract(item.HoraEntradaReal);
+                        // Convertir fechas y horas para usarlas en JS
+                        string mesRegistro = item.CreateAt.Month.ToString();
+
+                        <tr class="fila-registro" data-mes="@mesRegistro" data-segundos="@(horasCalc.TotalSeconds > 0 ? horasCalc.TotalSeconds : 0)">
+                            <td class="fw-semibold">
+                                @item.CreateAt.ToString("dd/MM/yyyy")
+                            </td>
+                            <td>
+                                <input type="time" id="entrada_@item.Id" value="@item.HoraEntradaReal.ToString(@"hh\:mm")" class="form-control custom-input" />
+                            </td>
+                            <td>
+                                <select id="estadoEnt_@item.Id" class="form-select custom-select">
+                                    <option value="PENDIENTE" selected="@(item.EstadoEntrada == "PENDIENTE")">PENDIENTE</option>
+                                    <option value="SIN_REGISTRO" selected="@(item.EstadoEntrada == "SIN_REGISTRO")">SIN REGISTRO</option>
+                                    <option value="MARCADA" selected="@(item.EstadoEntrada == "MARCADA")">MARCADA</option>
+                                    <option value="ATRASADO" selected="@(item.EstadoEntrada == "ATRASADO")">ATRASADO</option>
+                                    <option value="LICENCIA" selected="@(item.EstadoEntrada == "LICENCIA")">LICENCIA</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="time" id="salida_@item.Id" value="@item.HoraSalidaReal.ToString(@"hh\:mm")" class="form-control custom-input" />
+                            </td>
+                            <td>
+                                <select id="estadoSal_@item.Id" class="form-select custom-select">
+                                    <option value="PENDIENTE" selected="@(item.EstadoSalida == "PENDIENTE")">PENDIENTE</option>
+                                    <option value="SIN_REGISTRO" selected="@(item.EstadoSalida == "SIN_REGISTRO")">SIN REGISTRO</option>
+                                    <option value="MARCADA" selected="@(item.EstadoSalida == "MARCADA")">MARCADA</option>
+                                    <option value="ANTICIPADO" selected="@(item.EstadoSalida == "ANTICIPADO")">ANTICIPADO</option>
+                                    <option value="LICENCIA" selected="@(item.EstadoSalida == "LICENCIA")">LICENCIA</option>
+                                </select>
+                            </td>
+                            <td class="text-center fw-bold text-info" id="textoHoras_@item.Id">
+                                @(horasCalc.TotalSeconds > 0 ? $"{(int)horasCalc.TotalHours:D2}:{horasCalc.Minutes:D2}" : "--:--")
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-warning btn-sm fw-bold text-dark w-100" onclick="guardarFila(@item.Id, this)">
+                                    <i class="bi bi-save me-1"></i> Guardar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!historial.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-folder-x fs-1 d-block mb-3"></i>
+                                Este usuario no tiene registros de asistencia en la base de datos.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            filtrarYCalcular();
+        });
+
+        // FILTRA LAS FILAS POR MES Y SUMA LAS HORAS TOTALES
+        function filtrarYCalcular() {
+            const mesSeleccionado = document.getElementById("filtroMes").value;
+            const filas = document.querySelectorAll(".fila-registro");
+            let totalSegundos = 0;
+
+            filas.forEach(fila => {
+                const mesFila = fila.getAttribute("data-mes");
+
+                // Mostrar si es "0" (Todos) o si coincide el mes
+                if (mesSeleccionado === "0" || mesFila === mesSeleccionado) {
+                    fila.style.display = "";
+                    totalSegundos += parseFloat(fila.getAttribute("data-segundos"));
+                } else {
+                    fila.style.display = "none";
+                }
+            });
+
+            // Convertir segundos totales a formato HH:MM
+            const horas = Math.floor(totalSegundos / 3600);
+            const minutos = Math.floor((totalSegundos % 3600) / 60);
+
+            document.getElementById("totalHorasMes").innerText =
+                `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')} hrs`;
+        }
+
+        // FUNCIÓN AJAX PARA GUARDAR UNA FILA SIN RECARGAR LA PÁGINA
+        async function guardarFila(idAsistencia, btnElement) {
+            // Cambiar botón a estado de carga
+            const originalText = btnElement.innerHTML;
+            btnElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            btnElement.disabled = true;
+
+            const entrada = document.getElementById(`entrada_${idAsistencia}`).value;
+            const salida = document.getElementById(`salida_${idAsistencia}`).value;
+            const estadoEnt = document.getElementById(`estadoEnt_${idAsistencia}`).value;
+            const estadoSal = document.getElementById(`estadoSal_${idAsistencia}`).value;
+
+            // Preparamos los datos a enviar
+            const formData = new FormData();
+            formData.append("idAsistencia", idAsistencia);
+            formData.append("horaEntrada", entrada);
+            formData.append("horaSalida", salida);
+            formData.append("estadoEntrada", estadoEnt);
+            formData.append("estadoSalida", estadoSal);
+
+            try {
+                const response = await fetch('/Administrador/ActualizarFilaAsistencia', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        // Cambiar botón a verde temporalmente
+                        btnElement.classList.replace('btn-warning', 'btn-success');
+                        btnElement.innerHTML = '<i class="bi bi-check-lg"></i> Listo';
+
+                        // Recalcular las horas en la vista
+                        actualizarHorasEnFila(idAsistencia, entrada, salida);
+                        filtrarYCalcular();
+
+                        setTimeout(() => {
+                            btnElement.classList.replace('btn-success', 'btn-warning');
+                            btnElement.innerHTML = originalText;
+                            btnElement.disabled = false;
+                        }, 2000);
+                    }
+                } else {
+                    alert("Ocurrió un error al intentar guardar.");
+                    btnElement.innerHTML = originalText;
+                    btnElement.disabled = false;
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error de conexión.");
+                btnElement.innerHTML = originalText;
+                btnElement.disabled = false;
+            }
+        }
+
+        // RECALCULA LAS HORAS LOCALMENTE TRAS GUARDAR
+        function actualizarHorasEnFila(id, entrada, salida) {
+            const [hE, mE] = entrada.split(':').map(Number);
+            const [hS, mS] = salida.split(':').map(Number);
+
+            const segEntrada = (hE * 3600) + (mE * 60);
+            const segSalida = (hS * 3600) + (mS * 60);
+            let diferencia = segSalida - segEntrada;
+
+            if (diferencia < 0) diferencia = 0;
+
+            const fila = document.getElementById(`textoHoras_${id}`).closest('tr');
+            fila.setAttribute('data-segundos', diferencia);
+
+            const horas = Math.floor(diferencia / 3600);
+            const minutos = Math.floor((diferencia % 3600) / 60);
+
+            document.getElementById(`textoHoras_${id}`).innerText =
+                `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`;
+        }
+    </script>
 }

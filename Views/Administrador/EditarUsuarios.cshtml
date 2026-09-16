@@ -48,7 +48,7 @@
             <h3 class="text-white fw-bold mb-1">
                 <i class="bi bi-person-lines-fill text-warning me-2"></i>Edición de Colaborador
             </h3>
-            <p class="text-muted mb-0">Modificando el perfil y los accesos de @Model.Personal?.Nombre @Model.Personal?.Apellido</p>
+            <p class="text-muted mb-0">Modificando el perfil de @Model.Personal?.Nombre @Model.Personal?.Apellido</p>
         </div>
         <div>
             <a href="@Url.Action("Index", "Administrador")" class="btn btn-outline-info rounded-pill px-4 py-2">
@@ -60,7 +60,7 @@
     <!-- FORMULARIO DE EDICIÓN -->
     <form asp-action="EditarUsuarios" method="post" class="dashboard-card p-5">
 
-        <!-- Inputs ocultos para mantener las llaves primarias en el controlador -->
+        <!-- Inputs ocultos para mantener las llaves primarias -->
         <input type="hidden" name="Id" value="@Model.Id" />
         <input type="hidden" name="IdPersonal" value="@Model.IdPersonal" />
         <input type="hidden" name="Personal.Id" value="@Model.Personal?.Id" />
@@ -105,7 +105,6 @@
         <div class="row g-4 mb-4">
             <div class="col-md-4">
                 <label class="form-label text-muted fw-semibold">Rol del Sistema</label>
-                <!-- Según tu base de datos: 1=EMPLEADO, 2=RRHH, 3=ADMIN -->
                 <select name="Personal.IdRol" class="form-select custom-select">
                     <option value="1" selected="@(Model.Personal?.IdRol == 1)">EMPLEADO</option>
                     <option value="2" selected="@(Model.Personal?.IdRol == 2)">RRHH</option>
@@ -121,16 +120,16 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label text-muted fw-semibold">Cambiar Contraseña</label>
-                <input type="password" name="Password" class="form-control custom-input" placeholder="(Opcional) Dejar en blanco para omitir" />
+                <input type="password" name="Password" class="form-control custom-input" placeholder="(Opcional) Dejar en blanco" />
                 <div class="form-text text-muted small mt-1">Si no escribes nada, la contraseña actual se mantendrá.</div>
             </div>
         </div>
 
+        <!-- SWITCH DE ESTADO DE CUENTA (CORREGIDO CON ASP-FOR) -->
         <div class="mb-4 form-check form-switch fs-5 mt-4 p-4 rounded" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
-            <input type="hidden" name="Estado" value="false" /> <!-- Truco para evitar nulos en C# si se desmarca el check -->
-            <input class="form-check-input ms-0 me-3" type="checkbox" id="estadoCuenta" name="Estado" value="true" @(Model.Estado ? "checked" : "")>
+            <input class="form-check-input ms-0 me-3" type="checkbox" id="estadoCuenta" asp-for="Estado">
             <label class="form-check-label text-white" for="estadoCuenta" style="cursor: pointer;">
-                Cuenta Habilitada (Permitir inicio de sesión y marcación)
+                Cuenta Habilitada (Permitir inicio de sesión)
             </label>
         </div>
 

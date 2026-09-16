@@ -2,6 +2,7 @@
     ViewData["Title"] = "Acceso con Clave Dinámica";
     bool jornadaHabilitada = ViewBag.JornadaHabilitada ?? false;
     var errorMessage = ViewBag.Error ?? TempData["Error"];
+    var mensajeExito = ViewBag.MensajeExito ?? TempData["Mensaje"];
 }
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -11,6 +12,8 @@
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
         min-height: 100vh;
         color: #e2e8f0;
+        position: relative;
+        transition: background 0.5s ease;
     }
 
     .login-card {
@@ -19,6 +22,19 @@
         border-radius: 20px;
         backdrop-filter: blur(12px);
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        transition: all 0.4s ease;
+    }
+
+    .card-success {
+        border-color: #10b981 !important;
+        box-shadow: 0 0 35px rgba(16, 185, 129, 0.5) !important;
+        background: rgba(6, 78, 59, 0.85) !important;
+    }
+
+    .card-error {
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 35px rgba(239, 68, 68, 0.5) !important;
+        background: rgba(127, 29, 29, 0.85) !important;
     }
 
     .title-attendance {
@@ -89,10 +105,32 @@
         font-size: 0.9rem;
         font-weight: 500;
     }
+
+    .admin-access-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 25px;
+        z-index: 9999;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        padding: 8px 16px;
+        border-radius: 30px;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        text-decoration: none;
+        backdrop-filter: blur(8px);
+        transition: all 0.3s ease;
+    }
+
+        .admin-access-btn:hover {
+            background: rgba(2, 132, 199, 0.2);
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.5);
+        }
 </style>
 
 <div class="container d-flex justify-content-center align-items-center" style="min-height: 85vh;">
-    <div class="card login-card p-4 w-100" style="max-width: 440px;">
+    <div id="mainCard" class="card login-card p-4 w-100 @(errorMessage != null ? "card-error" : (mensajeExito != null ? "card-success" : ""))" style="max-width: 440px;">
         <div class="card-body">
 
             <div class="text-center mb-4">
@@ -103,18 +141,26 @@
                 <p class="text-muted small">Ingresa tu clave dinámica de asistencia</p>
             </div>
 
-            <!-- Alerta Grande de Error -->
+            @if (mensajeExito != null)
+            {
+                <div id="alertaTemporal" class="alert alert-success d-flex align-items-center mb-4 p-3 shadow" role="alert" style="border-radius: 12px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399;">
+                    <i class="bi bi-check-circle-fill fs-3 me-3"></i>
+                    <div style="font-size: 0.95rem; line-height: 1.3; text-align: left; font-weight: 600;">
+                        @mensajeExito
+                    </div>
+                </div>
+            }
+
             @if (errorMessage != null)
             {
-                <div class="alert alert-danger d-flex align-items-center mb-4 p-3" role="alert" style="border-radius: 12px; background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5;">
+                <div id="alertaTemporal" class="alert alert-danger d-flex align-items-center mb-4 p-3 shadow" role="alert" style="border-radius: 12px; background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(220, 38, 38, 0.4); color: #fca5a5;">
                     <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
-                    <div style="font-size: 0.95rem; line-height: 1.3; text-align: left;">
+                    <div style="font-size: 0.95rem; line-height: 1.3; text-align: left; font-weight: 600;">
                         @errorMessage
                     </div>
                 </div>
             }
 
-            <!-- Alerta Informativa de Turno Inactivo o Fuera de Horario -->
             @if (!jornadaHabilitada)
             {
                 <div class="alert alert-warning d-flex align-items-center mb-4 p-3" role="alert" style="border-radius: 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #fcd34d;">
@@ -127,14 +173,12 @@
             }
 
             <form asp-controller="Trabajador" asp-action="LoginClaveDinamica" method="post">
-                @Html.AntiForgeryToken()
-
                 <div class="mb-4">
                     <label class="form-label-custom mb-2">Clave Dinámica</label>
                     <div class="input-group">
                         <span class="input-group-text custom-addon"><i class="bi bi-key-fill"></i></span>
                         <input name="claveDinamica" type="text" class="form-control custom-input text-uppercase text-center fw-bold"
-                               maxlength="8" placeholder="CAMI12" required autocomplete="off"
+                               maxlength="8" placeholder="CAMI12" required autocomplete="off" autofocus
                         @(jornadaHabilitada ? "" : "disabled") />
                     </div>
                     <small class="text-muted d-block mt-2 text-center">Código único de hasta 8 caracteres.</small>
@@ -151,3 +195,85 @@
         </div>
     </div>
 </div>
+
+<a href="@Url.Action("AdminVerificacion", "Auth")" class="admin-access-btn" title="Verificación de Administrador">
+    <i class="bi bi-shield-lock-fill me-1"></i> Acceso Admin
+</a>
+
+<script>
+    function reproducirSonido(tipo) {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (tipo === 'exito') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            } else {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.35);
+            }
+        } catch (e) {
+            console.log("Audio bloqueado o no soportado.");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const hasError = @Json.Serialize(errorMessage != null);
+        const hasSuccess = @Json.Serialize(mensajeExito != null);
+
+        if (hasError) {
+            reproducirSonido('error');
+
+            // Después de 3 segundos (3000 ms), quitamos el rojo y volvemos a la normalidad
+            setTimeout(() => {
+                const alerta = document.getElementById('alertaTemporal');
+                const tarjeta = document.getElementById('mainCard');
+                if (alerta) {
+                    alerta.style.transition = "opacity 0.5s ease";
+                    alerta.style.opacity = "0";
+                    setTimeout(() => alerta.remove(), 500);
+                }
+                if (tarjeta) {
+                    tarjeta.classList.remove('card-error');
+                    // Forzamos el restablecimiento visual a los estilos base
+                    tarjeta.style.background = "rgba(30, 41, 59, 0.75)";
+                    tarjeta.style.borderColor = "rgba(56, 189, 248, 0.15)";
+                    tarjeta.style.boxShadow = "0 20px 40px rgba(0, 0, 0, 0.4)";
+                }
+            }, 3000); // 3 segundos para el rojo
+
+        } else if (hasSuccess) {
+            reproducirSonido('exito');
+
+            setTimeout(() => {
+                const alerta = document.getElementById('alertaTemporal');
+                const tarjeta = document.getElementById('mainCard');
+                if (alerta) {
+                    alerta.style.transition = "opacity 0.5s ease";
+                    alerta.style.opacity = "0";
+                    setTimeout(() => alerta.remove(), 500);
+                }
+                if (tarjeta) {
+                    tarjeta.classList.remove('card-success');
+                    tarjeta.style.background = "rgba(30, 41, 59, 0.75)";
+                    tarjeta.style.borderColor = "rgba(56, 189, 248, 0.15)";
+                    tarjeta.style.boxShadow = "0 20px 40px rgba(0, 0, 0, 0.4)";
+                }
+            }, 4000); // 4 segundos para el verde
+        }
+    });
+</script>
