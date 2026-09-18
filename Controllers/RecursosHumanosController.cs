@@ -3,6 +3,7 @@ using control_asistencia.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace control_asistencia.Controllers
 {
@@ -189,38 +190,60 @@ namespace control_asistencia.Controllers
             return View(solicitud);
         }
 
+
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> GestionarSolicitud(int id, string accion, string respuestaRrgg)
         {
-            var solicitud = await _context.Solicitudes
-                .Include(s => s.Usuario)
-                    .ThenInclude(u => u.Personal)
-                .FirstOrDefaultAsync(s => s.Id == id);
+            // 1. Identificar quién está revisando (RRHH)
+            var claimId = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (claimId == null) return RedirectToAction("Logout", "Auth");
+            int idUsuarioRevisor = int.Parse(claimId.Value);
 
+            // 2. Buscar la solicitud original
+            var solicitud = await _context.Solicitudes.FindAsync(id);
             if (solicitud == null) return NotFound();
 
-            if (accion == "APROBAR")
-            {
-                solicitud.EstadoSolicitud = "APROBADO";
-                TempData["Mensaje"] = "La solicitud ha sido APROBADA exitosamente.";
-            }
-            else if (accion == "RECHAZAR")
-            {
-                solicitud.EstadoSolicitud = "RECHAZADO";
-                TempData["Mensaje"] = "La solicitud ha sido RECHAZADA.";
-            }
+            // 3. Capturar estado para trazabilidad
+            string estadoAntiguo = solicitud.EstadoSolicitud;
+            string estadoNuevo = accion == "APROBAR" ? "APROBADO" : "RECHAZADO";
 
-            // Si tu modelo Solicitudes tiene un campo de respuesta/observación, guárdalo aquí:
-            // solicitud.RespuestaRrgg = respuestaRrgg;
-
+            // 4. Actualizar solicitud
+            solicitud.EstadoSolicitud = estadoNuevo;
             _context.Update(solicitud);
+
+            // 5. Inserción en tabla LOG
+            var nuevoLog = new Log
+            {
+                IdSolicitudes = solicitud.Id,
+                RevisadoPor = idUsuarioRevisor,
+                Respuesta = respuestaRrgg ?? "Sin observaciones emitidas",
+                CreateAt = DateTime.Now
+            };
+            _context.Log.Add(nuevoLog);
+
+            // Guardamos para generar el ID autoincremental de 'nuevoLog'
             await _context.SaveChangesAsync();
 
+            // 6. Inserción en tabla LOG_MODIFICACION
+            var logModificacion = new LogModificacion
+            {
+                IdLog = nuevoLog.Id,
+                Tabla = "solicitudes",
+                Columna = "estado_solicitud",
+                ValorAntiguo = estadoAntiguo,
+                ValorNuevo = estadoNuevo
+            };
+            _context.LogModificacion.Add(logModificacion);
+
+            // Guardado transaccional final
+            await _context.SaveChangesAsync();
+
+            TempData["Mensaje"] = $"La solicitud ha sido {estadoNuevo} y la auditoría se registró exitosamente.";
             return RedirectToAction(nameof(Index));
         }
-
-
-
     }
 }
+
+   
