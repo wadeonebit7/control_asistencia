@@ -43,15 +43,19 @@ RUN dotnet build "control_asistencia.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "control_asistencia.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# 4. Configuración final del arranque y binarios nativos de Tesseract/Leptonica
+# 4. Configuración final del arranque y distribución total de binarios nativos
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-# Descarga directa y segura de los binarios exactos x64 que exige el NuGet de Tesseract en runtime
+# Descarga y despliegue masivo en todas las rutas posibles donde Tesseract busca las librerías
 RUN mkdir -p /app/x64 && \
-    wget -q -O /app/x64/libleptonica-1.82.0.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libleptonica-1.82.0.so" && \
-    wget -q -O /app/x64/libtesseract41.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libtesseract41.so" || true && \
-    chmod -R 755 /app/x64
+    wget -q -O /app/libleptonica-1.82.0.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libleptonica-1.82.0.so" && \
+    cp /app/libleptonica-1.82.0.so /app/x64/libleptonica-1.82.0.so && \
+    cp /app/libleptonica-1.82.0.so /usr/lib/libleptonica-1.82.0.so && \
+    wget -q -O /app/libtesseract41.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libtesseract41.so" || true && \
+    cp /app/libtesseract41.so /app/x64/libtesseract41.so || true && \
+    cp /app/libtesseract41.so /usr/lib/libtesseract41.so || true && \
+    chmod 755 /app/libleptonica-1.82.0.so /app/x64/libleptonica-1.82.0.so /usr/lib/libleptonica-1.82.0.so
 
 ENTRYPOINT ["dotnet", "control_asistencia.dll"]
