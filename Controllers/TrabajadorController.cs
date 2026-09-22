@@ -302,6 +302,7 @@ namespace control_asistencia.Controllers
 
 
 
+
         [HttpPost]
         public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento, [FromForm] string tipoSolicitud)
         {
@@ -323,13 +324,11 @@ namespace control_asistencia.Controllers
 
                 if (extension == ".pdf")
                 {
-                    // Convertir PDF a imágenes PNG usando pdftoppm (nativo de Linux)
+                    // Convertir PDF a imágenes PNG usando pdftoppm (sin redirección para evitar bloqueos)
                     var psiPdf = new ProcessStartInfo
                     {
                         FileName = "pdftoppm",
                         Arguments = $"-png -r 300 \"{tempPathWithExt}\" \"{outputPrefix}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
@@ -339,7 +338,6 @@ namespace control_asistencia.Controllers
                         processPdf.WaitForExit();
                     }
 
-                    // Buscar todas las páginas convertidas (ej. ocr_page_xxx-1.png, ocr_page_xxx-2.png)
                     string tempDir = Path.GetDirectoryName(outputPrefix);
                     string filePrefix = Path.GetFileName(outputPrefix);
                     var generatedImages = Directory.GetFiles(tempDir, filePrefix + "*.png").OrderBy(f => f).ToArray();
@@ -351,8 +349,6 @@ namespace control_asistencia.Controllers
                         {
                             FileName = "tesseract",
                             Arguments = $"\"{imgPath}\" \"{outputBase}\" -l spa",
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
                             UseShellExecute = false,
                             CreateNoWindow = true
                         };
@@ -368,8 +364,8 @@ namespace control_asistencia.Controllers
                             textoExtraido += "\n" + await System.IO.File.ReadAllTextAsync(txtFile);
                             System.IO.File.Delete(txtFile);
                         }
-                        System.IO.File.Delete(outputBase);
-                        System.IO.File.Delete(imgPath); // Limpiar imagen de página temporal
+                        if (System.IO.File.Exists(outputBase)) System.IO.File.Delete(outputBase);
+                        if (System.IO.File.Exists(imgPath)) System.IO.File.Delete(imgPath);
                     }
                 }
                 else
@@ -380,8 +376,6 @@ namespace control_asistencia.Controllers
                     {
                         FileName = "tesseract",
                         Arguments = $"\"{tempPathWithExt}\" \"{outputBase}\" -l spa",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
                         UseShellExecute = false,
                         CreateNoWindow = true
                     };
@@ -397,10 +391,9 @@ namespace control_asistencia.Controllers
                         textoExtraido = await System.IO.File.ReadAllTextAsync(txtFile);
                         System.IO.File.Delete(txtFile);
                     }
-                    System.IO.File.Delete(outputBase);
+                    if (System.IO.File.Exists(outputBase)) System.IO.File.Delete(outputBase);
                 }
 
-                // Limpieza del archivo original temporal
                 if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
 
@@ -491,7 +484,6 @@ namespace control_asistencia.Controllers
                 return StatusCode(500, $"Error OCR Interno: {ex.Message}");
             }
         }
-
 
 
         [HttpGet]
