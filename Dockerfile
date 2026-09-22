@@ -7,7 +7,7 @@ WORKDIR /app
 EXPOSE 8080
 
 # =========================================================================
-# INSTALACIÓN DE LIBRERÍAS LINUX PARA PDFIUM Y OCR
+# INSTALACIÓN DE LIBRERÍAS NATIVAS, PDFIUM, OCR Y ENLACE DE LIBDL
 # =========================================================================
 RUN apt-get update && apt-get install -y --allow-unauthenticated \
     libgdiplus \
@@ -16,7 +16,10 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated \
     tesseract-ocr-spa \
     wget \
     tar \
-    # Descargar Pdfium nativo para Linux
+    # 1. Solución para libdl (Redirige las llamadas a la librería estándar de C)
+    && ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/libdl.so || true \
+    && ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/libdl.so.2 || true \
+    # 2. Descargar Pdfium nativo para Linux
     && wget -q -O pdfium.tgz https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz \
     && tar -xzf pdfium.tgz \
     && cp lib/libpdfium.so /usr/lib/libpdfium.so \
