@@ -194,6 +194,137 @@ namespace control_asistencia.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AceptarSolicitud(int id)
+        {
+            // 1. Buscar la solicitud principal
+            var solicitud = await _context.Solicitudes
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (solicitud == null)
+            {
+                TempData["Error"] = "La solicitud no fue encontrada.";
+                return RedirectToAction("Index", "RecursosHumanos"); // Cambia a tu vista correspondiente
+            }
+
+            // Validar que esté pendiente
+            if (solicitud.EstadoSolicitud != "PENDIENTE")
+            {
+                TempData["Error"] = "Esta solicitud ya fue procesada anteriormente.";
+                return RedirectToAction("Index", "RecursosHumanos");
+            }
+
+            // 2. Evaluar según el tipo de solicitud
+            if (solicitud.TipoSolicitud == "LICENCIA_MEDICA")
+            {
+                // Buscar los datos en la tabla hija 'licencia_medica'
+                var licencia = await _context.LicenciaMedica // Asegúrate de que el DbSet se llame así en tu DbContext
+                    .FirstOrDefaultAsync(l => l.IdSolicitudes == solicitud.Id);
+
+                if (licencia == null)
+                {
+                    TempData["Error"] = "No se encontraron los detalles de la licencia médica.";
+                    return RedirectToAction("Index", "RecursosHumanos");
+                }
+
+                // VALIDACIÓN DE RANGO DE FECHAS: Desde FechaInicio hasta FechaTermino
+                for (var dt = licencia.FechaInicio.Date; dt <= licencia.FechaTermino.Date; dt = dt.AddDays(1))
+                {
+                    var asistenciaDia = await _context.Asistencia
+                        .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == dt);
+
+                    // Si en ALGÚN día del rango el usuario no marcó/tiene asistencia, se rechaza la aprobación
+                    if (asistenciaDia == null)
+                    {
+                        TempData["Error"] = $"Error al aceptar: El usuario no registra asistencia el día {dt:dd-MM-yyyy} (dentro del rango de la licencia). No se puede aplicar.";
+                        return RedirectToAction("Index", "RecursosHumanos");
+                    }
+                }
+
+                // Si pasó la validación para todos los días, procedemos a ACTUALIZAR la asistencia de ese rango
+                for (var dt = licencia.FechaInicio.Date; dt <= licencia.FechaTermino.Date; dt = dt.AddDays(1))
+                {
+                    var asistenciaDia = await _context.Asistencia
+                        .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == dt);
+
+                    if (asistenciaDia != null)
+                    {
+                        asistenciaDia.EstadoEntrada = "LICENCIA";
+                        asistenciaDia.EstadoSalida = "LICENCIA";
+                        _context.Asistencia.Update(asistenciaDia);
+                    }
+                }
+            }
+            else if (solicitud.TipoSolicitud == "AJUSTE_ASISTENCIA")
+            {
+                // Buscar los datos en la tabla hija 'ajuste_asistencia'
+                var ajuste = await _context.AjusteAsistencia // Asegúrate de que el DbSet se llame así en tu DbContext
+                    .FirstOrDefaultAsync(a => a.IdSolicitudes == solicitud.Id);
+
+                if (ajuste == null)
+                {
+                    TempData["Error"] = "No se encontraron los detalles del ajuste de asistencia.";
+                    return RedirectToAction("Index", "RecursosHumanos");
+                }
+
+                // Buscar la asistencia de la fecha afectada específica
+                var asistenciaAfectada = await _context.Asistencia
+                    .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == ajuste.FechaAfectada.Date);
+
+                // VALIDACIÓN: Si no hay asistencia ese día, se bloquea
+                if (asistenciaAfectada == null)
+                {
+                    TempData["Error"] = $"Error al aceptar: El usuario no registra ninguna asistencia en la fecha afectada ({ajuste.FechaAfectada:dd-MM-yyyy}).";
+                    return RedirectToAction("Index", "RecursosHumanos");
+                }
+
+                // ACTUALIZAR la asistencia con las horas oficiales enviadas en el ajuste
+                asistenciaAfectada.HoraEntradaReal = ajuste.HoraEntrada;
+                asistenciaAfectada.HoraSalidaReal = ajuste.HoraSalida;
+                asistenciaAfectada.EstadoEntrada = "AJUSTADO";
+                asistenciaAfectada.EstadoSalida = "AJUSTADO";
+
+                // Recalcular horas reales trabajadas
+                var spanHoras = ajuste.HoraSalida - ajuste.HoraEntrada;
+                if (spanHoras > TimeSpan.Zero)
+                {
+                    asistenciaAfectada.HorasReales = spanHoras;
+                    asistenciaAfectada.HorasTrabajadas = spanHoras;
+                }
+
+                _context.Asistencia.Update(asistenciaAfectada);
+            }
+
+            // 3. Cambiar el estado de la solicitud principal a APROBADO
+            solicitud.EstadoSolicitud = "APROBADO";
+            _context.Solicitudes.Update(solicitud);
+
+            // 4. (Opcional) Registrar en la tabla LOG si lo requieres para la auditoría
+            var claimId = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (claimId != null)
+            {
+                int idAdminLogueado = int.Parse(claimId.Value);
+                var nuevoLog = new Log
+                {
+                    IdSolicitudes = solicitud.Id,
+                    RevisadoPor = idAdminLogueado,
+                    Respuesta = "Solicitud aprobada y aplicada al sistema de asistencia.",
+                    CreateAt = DateTime.Now
+                };
+                _context.Add(nuevoLog);
+            }
+
+            await _context.SaveChangesAsync();
+
+            TempData["Mensaje"] = "¡Solicitud aceptada con éxito! Los registros de asistencia fueron actualizados automáticamente.";
+            return RedirectToAction("Index", "RecursosHumanos");
+        }
+
+
+
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> GestionarSolicitud(int id, string accion, string respuestaRrgg)
         {
             // 1. Identificar quién está revisando (RRHH)
@@ -201,15 +332,116 @@ namespace control_asistencia.Controllers
             if (claimId == null) return RedirectToAction("Logout", "Auth");
             int idUsuarioRevisor = int.Parse(claimId.Value);
 
-            // 2. Buscar la solicitud original
-            var solicitud = await _context.Solicitudes.FindAsync(id);
-            if (solicitud == null) return NotFound();
+            // 2. Buscar la solicitud original incluyendo al usuario y personal asociado
+            var solicitud = await _context.Solicitudes
+                .Include(s => s.Usuario)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (solicitud == null)
+            {
+                TempData["Error"] = "La solicitud no fue encontrada.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (solicitud.EstadoSolicitud != "PENDIENTE")
+            {
+                TempData["Error"] = "Esta solicitud ya fue procesada anteriormente.";
+                return RedirectToAction(nameof(Index));
+            }
 
             // 3. Capturar estado para trazabilidad
             string estadoAntiguo = solicitud.EstadoSolicitud;
             string estadoNuevo = accion == "APROBAR" ? "APROBADO" : "RECHAZADO";
 
-            // 4. Actualizar solicitud
+            // =========================================================================
+            // LÓGICA DE APROBACIÓN Y CAMBIOS EN ASISTENCIA / USUARIO
+            // =========================================================================
+            if (accion == "APROBAR")
+            {
+                if (solicitud.TipoSolicitud == "LICENCIA_MEDICA")
+                {
+                    var licencia = await _context.LicenciaMedica
+                        .FirstOrDefaultAsync(l => l.IdSolicitudes == solicitud.Id);
+
+                    if (licencia == null)
+                    {
+                        TempData["Error"] = "No se encontraron los datos de la licencia médica.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    // Validación del rango completo: desde FechaInicio hasta FechaTermino
+                    for (var dt = licencia.FechaInicio.Date; dt <= licencia.FechaTermino.Date; dt = dt.AddDays(1))
+                    {
+                        var asistenciaDia = await _context.Asistencia
+                            .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == dt);
+
+                        if (asistenciaDia == null)
+                        {
+                            TempData["Error"] = $"Error al aceptar: El usuario no registra asistencia el día {dt:dd-MM-yyyy} (dentro del rango de la licencia).";
+                            return RedirectToAction(nameof(Index));
+                        }
+                    }
+
+                    // Aplicar el cambio a LICENCIA en el rango de fechas de asistencia
+                    for (var dt = licencia.FechaInicio.Date; dt <= licencia.FechaTermino.Date; dt = dt.AddDays(1))
+                    {
+                        var asistenciaDia = await _context.Asistencia
+                            .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == dt);
+
+                        if (asistenciaDia != null)
+                        {
+                            asistenciaDia.EstadoEntrada = "LICENCIA";
+                            asistenciaDia.EstadoSalida = "LICENCIA";
+                            _context.Asistencia.Update(asistenciaDia);
+                        }
+                    }
+
+                    // CAMBIAR EL STATUS DEL USUARIO A 'LICENCIA' SOLO SI LA LICENCIA CUBRE HOY O DÍAS FUTUROS
+                    var hoy = DateTime.Now.Date;
+                    if (solicitud.Usuario != null && licencia.FechaTermino.Date >= hoy)
+                    {
+                        solicitud.Usuario.Status = "LICENCIA";
+                        _context.Usuarios.Update(solicitud.Usuario);
+                    }
+                }
+                else if (solicitud.TipoSolicitud == "AJUSTE_ASISTENCIA")
+                {
+                    var ajuste = await _context.AjusteAsistencia
+                        .FirstOrDefaultAsync(a => a.IdSolicitudes == solicitud.Id);
+
+                    if (ajuste == null)
+                    {
+                        TempData["Error"] = "No se encontraron los datos del ajuste de asistencia.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    var asistenciaAfectada = await _context.Asistencia
+                        .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == ajuste.FechaAfectada.Date);
+
+                    if (asistenciaAfectada == null)
+                    {
+                        TempData["Error"] = $"Error al aceptar: El usuario no registra asistencia en la fecha afectada ({ajuste.FechaAfectada:dd-MM-yyyy}).";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    // Aplicar las horas reales del ajuste
+                    asistenciaAfectada.HoraEntradaReal = ajuste.HoraEntrada;
+                    asistenciaAfectada.HoraSalidaReal = ajuste.HoraSalida;
+                    asistenciaAfectada.EstadoEntrada = "AJUSTADO";
+                    asistenciaAfectada.EstadoSalida = "AJUSTADO";
+
+                    var spanHoras = ajuste.HoraSalida - ajuste.HoraEntrada;
+                    if (spanHoras > TimeSpan.Zero)
+                    {
+                        asistenciaAfectada.HorasReales = spanHoras;
+                        asistenciaAfectada.HorasTrabajadas = spanHoras;
+                    }
+
+                    _context.Asistencia.Update(asistenciaAfectada);
+                }
+            }
+
+            // 4. Actualizar solicitud principal
             solicitud.EstadoSolicitud = estadoNuevo;
             _context.Update(solicitud);
 
@@ -218,7 +450,7 @@ namespace control_asistencia.Controllers
             {
                 IdSolicitudes = solicitud.Id,
                 RevisadoPor = idUsuarioRevisor,
-                Respuesta = respuestaRrgg ?? "Sin observaciones emitidas",
+                Respuesta = string.IsNullOrEmpty(respuestaRrgg) ? "Sin observaciones emitidas" : respuestaRrgg,
                 CreateAt = DateTime.Now
             };
             _context.Log.Add(nuevoLog);
@@ -240,9 +472,14 @@ namespace control_asistencia.Controllers
             // Guardado transaccional final
             await _context.SaveChangesAsync();
 
-            TempData["Mensaje"] = $"La solicitud ha sido {estadoNuevo} y la auditoría se registró exitosamente.";
+            TempData["Mensaje"] = $"La solicitud ha sido {estadoNuevo} exitosamente y la asistencia/auditoría se actualizó.";
             return RedirectToAction(nameof(Index));
         }
+
+
+
+
+
     }
 }
 

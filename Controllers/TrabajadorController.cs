@@ -43,9 +43,10 @@ namespace control_asistencia.Controllers
             return View(registrosAsistencia);
         }
 
-        // Quitamos el ValidateAntiForgeryToken aquí para evitar el Error 400 en la terminal pública
+
         [AllowAnonymous]
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
         {
             if (string.IsNullOrEmpty(claveDinamica))
@@ -54,6 +55,9 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            claveDinamica = claveDinamica.Trim().ToUpper();
+
+            // 1. Buscamos al usuario por su clave dinámica y estado activo
             var usuario = await _context.Usuarios
                 .Include(u => u.Personal)
                     .ThenInclude(p => p.Rol)
@@ -65,14 +69,16 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            // 2. Conservamos tus TempData
             TempData["IdUsuario"] = usuario.Id;
             TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
             TempData.Keep("IdUsuario");
             TempData.Keep("UsuarioLogueado");
 
             var fechaHoy = DateTime.Now.Date;
-            var horaActual = DateTime.Now.TimeOfDay;
+            var horaActual = DateTime.Now;
 
+            // 3. Verificamos que la jornada del día esté habilitada
             var jornadaHabilitada = await _context.habilitar_asistencia
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
@@ -82,16 +88,71 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            TimeSpan cambioTurnoFijo = new TimeSpan(14, 0, 0);
+            // 4. LÓGICA INTELIGENTE: Verificar si ya existe un registro de asistencia hoy
+            var asistenciaHoy = await _context.Asistencia
+                .FirstOrDefaultAsync(a => a.IdUsuario == usuario.Id && a.CreateAt.Date == fechaHoy);
 
-            if (horaActual >= cambioTurnoFijo)
+            if (asistenciaHoy == null)
             {
-                return RedirectToAction("SalidaAsistencia");
+                // =========================================================
+                // CASO 1: PRIMER INGRESO -> MARCAJE DE ENTRADA (INSERT)
+                // =========================================================
+                var nuevaAsistencia = new control_asistencia.Models.Asistencia
+                {
+                    IdUsuario = usuario.Id,
+                    CreateAt = DateTime.Now,
+                    Estado = true,
+                    EstadoEntrada = "ATENTO",
+                    EstadoSalida = "PENDIENTE",
+                    HoraEntradaReal = horaActual.TimeOfDay,
+                    HoraSalidaReal = TimeSpan.Zero, // O TimeSpan.Zero según tu inicializador por defecto
+                    HorasReales = null,
+                    HorasTrabajadas = null,
+                    IdHabilitarAsistencia = jornadaHabilitada.Id
+                };
+
+                _context.Asistencia.Add(nuevaAsistencia);
+                await _context.SaveChangesAsync();
+
+                TempData["Mensaje"] = $"¡Bienvenido/a, {usuario.Personal.Nombre}! Tu hora de ENTRADA ha sido registrada a las {horaActual:HH:mm:ss}.";
             }
             else
             {
-                return RedirectToAction("EntradaAsistencia");
+                // =========================================================
+                // CASO 2: SEGUNDO INGRESO -> MARCAJE DE SALIDA (UPDATE)
+                // =========================================================
+
+                // Validar si ya marcó su salida previamente (si es diferente de TimeSpan.Zero o TimeSpan.MinValue)
+                if (asistenciaHoy.HoraSalidaReal != TimeSpan.Zero)
+                {
+                    TempData["Error"] = $"Estimado/a {usuario.Personal.Nombre}, ya registraste tu entrada y salida el día de hoy.";
+                    return RedirectToAction("LogoutAsistencia", "Auth");
+                }
+
+                // Validación para evitar doble toque accidental (ej. 1 minuto mínimo)
+                var diferenciaMinutos = (horaActual.TimeOfDay - asistenciaHoy.HoraEntradaReal).TotalMinutes;
+                if (diferenciaMinutos < 1)
+                {
+                    TempData["Error"] = "Debe esperar al menos 1 minuto desde su marcaje de entrada para registrar la salida.";
+                    return RedirectToAction("LogoutAsistencia", "Auth");
+                }
+
+                // Actualizamos con la hora de salida real
+                asistenciaHoy.HoraSalidaReal = horaActual.TimeOfDay;
+                asistenciaHoy.EstadoSalida = "COMPLETADO";
+
+                // Cálculo de horas trabajadas usando TimeSpan directamente compatible con tu modelo
+                var horasTrabajadasSpan = horaActual.TimeOfDay - asistenciaHoy.HoraEntradaReal;
+                asistenciaHoy.HorasReales = horasTrabajadasSpan;
+                asistenciaHoy.HorasTrabajadas = horasTrabajadasSpan;
+
+                _context.Asistencia.Update(asistenciaHoy);
+                await _context.SaveChangesAsync();
+
+                TempData["Mensaje"] = $"¡Hasta luego, {usuario.Personal.Nombre}! Tu hora de SALIDA ha sido registrada a las {horaActual:HH:mm:ss}.";
             }
+
+            return RedirectToAction("LogoutAsistencia", "Auth");
         }
 
 
