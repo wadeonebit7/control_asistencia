@@ -194,9 +194,12 @@
                     <div class="col-md-2" id="bloqueMes">
                         <label class="form-label text-muted fw-semibold">Mes</label>
                         <select id="mesFiltro" class="form-select custom-select">
+                            @{
+                                var cultureEsAdmin = new System.Globalization.CultureInfo("es-ES");
+                            }
                             @for (int i = 1; i <= 12; i++)
                             {
-                                <option value="@i" selected="@(mesActual == i)">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(i)</option>
+                                <option value="@i" selected="@(mesActual == i)">@cultureEsAdmin.DateTimeFormat.GetMonthName(i)</option>
                             }
                         </select>
                     </div>
@@ -392,7 +395,7 @@
             </div>
         </div>
 
-        <!-- 5. HABILITAR ASISTENCIA (RANGO: FECHA INICIO Y FECHA SALIDA) -->
+        <!-- 5. HABILITAR ASISTENCIA -->
         <div class="tab-pane fade" id="habilitar-asistencia-pane" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-4 p-4 dashboard-card">
                 <div>
@@ -468,7 +471,6 @@
 
 @section Scripts {
     <script>
-        // --- 1. MONITOREO GENERAL ---
         const inputBuscar = document.getElementById('buscarUsuario');
         const selectTipoFiltro = document.getElementById('tipoFiltroFecha');
         const selectMes = document.getElementById('mesFiltro');
@@ -522,7 +524,6 @@
         if(selectEstado) selectEstado.addEventListener('change', ejecutarFiltroDinamico);
         if(inputBuscar) inputBuscar.addEventListener('input', () => setTimeout(ejecutarFiltroDinamico, 300));
 
-        // --- 2. GESTIÓN DE COLABORADORES ---
         const inputBuscarEmpleados = document.getElementById('buscadorEmpleados');
         const tbodyColaboradores = document.getElementById('tbodyColaboradores');
 
@@ -555,7 +556,6 @@
 
         if(inputBuscarEmpleados) inputBuscarEmpleados.addEventListener('input', () => setTimeout(ejecutarBusquedaUsuarios, 300));
 
-        // --- 3. GESTIÓN DE HABILITACIONES ACTIVAS (TABLA AJAX) ---
         async function cargarHabilitacionesActivas() {
             const tbodyHabilitaciones = document.getElementById('tbodyHabilitaciones');
             try {
@@ -585,7 +585,6 @@
             } catch (e) { console.error("Error al cargar habilitaciones:", e); }
         }
 
-        // --- 4. LOG DE SOLICITUDES Y MODIFICACIONES ---
         const buscadorLogs = document.getElementById('buscadorLogs');
         const filtroRespuestaLogs = document.getElementById('filtroRespuestaLogs');
         const tbodyLogs = document.getElementById('tbodyLogs');
@@ -628,7 +627,6 @@
         if(buscadorLogs) buscadorLogs.addEventListener('input', () => setTimeout(ejecutarBusquedaLogs, 300));
         if(filtroRespuestaLogs) filtroRespuestaLogs.addEventListener('change', ejecutarBusquedaLogs);
 
-        // INICIALIZACIÓN
         document.addEventListener("DOMContentLoaded", () => {
             toggleFiltroFecha();
             ejecutarBusquedaUsuarios();

@@ -73,9 +73,12 @@
                 <label class="form-label text-info fw-semibold mb-2"><i class="bi bi-funnel me-1"></i> Filtrar por Mes</label>
                 <select id="filtroMes" class="form-select custom-select fs-5" onchange="filtrarYCalcular()">
                     <option value="0">Todos los registros históricos</option>
+                    @{
+                        var cultureEsIndividual = new System.Globalization.CultureInfo("es-ES");
+                    }
                     @for (int i = 1; i <= 12; i++)
                     {
-                        <option value="@i" selected="@(DateTime.Now.Month == i)">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(i).ToUpper()</option>
+                        <option value="@i" selected="@(DateTime.Now.Month == i)">@cultureEsIndividual.DateTimeFormat.GetMonthName(i).ToUpper()</option>
                     }
                 </select>
             </div>
@@ -112,7 +115,6 @@
                     @foreach (var item in historial)
                     {
                         TimeSpan horasCalc = item.HoraSalidaReal.Subtract(item.HoraEntradaReal);
-                        // Convertir fechas y horas para usarlas en JS
                         string mesRegistro = item.CreateAt.Month.ToString();
 
                         <tr class="fila-registro" data-mes="@mesRegistro" data-segundos="@(horasCalc.TotalSeconds > 0 ? horasCalc.TotalSeconds : 0)">
@@ -174,7 +176,6 @@
             filtrarYCalcular();
         });
 
-        // FILTRA LAS FILAS POR MES Y SUMA LAS HORAS TOTALES
         function filtrarYCalcular() {
             const mesSeleccionado = document.getElementById("filtroMes").value;
             const filas = document.querySelectorAll(".fila-registro");
@@ -182,8 +183,6 @@
 
             filas.forEach(fila => {
                 const mesFila = fila.getAttribute("data-mes");
-
-                // Mostrar si es "0" (Todos) o si coincide el mes
                 if (mesSeleccionado === "0" || mesFila === mesSeleccionado) {
                     fila.style.display = "";
                     totalSegundos += parseFloat(fila.getAttribute("data-segundos"));
@@ -192,7 +191,6 @@
                 }
             });
 
-            // Convertir segundos totales a formato HH:MM
             const horas = Math.floor(totalSegundos / 3600);
             const minutos = Math.floor((totalSegundos % 3600) / 60);
 
@@ -200,9 +198,7 @@
                 `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')} hrs`;
         }
 
-        // FUNCIÓN AJAX PARA GUARDAR UNA FILA SIN RECARGAR LA PÁGINA
         async function guardarFila(idAsistencia, btnElement) {
-            // Cambiar botón a estado de carga
             const originalText = btnElement.innerHTML;
             btnElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             btnElement.disabled = true;
@@ -212,7 +208,6 @@
             const estadoEnt = document.getElementById(`estadoEnt_${idAsistencia}`).value;
             const estadoSal = document.getElementById(`estadoSal_${idAsistencia}`).value;
 
-            // Preparamos los datos a enviar
             const formData = new FormData();
             formData.append("idAsistencia", idAsistencia);
             formData.append("horaEntrada", entrada);
@@ -229,11 +224,9 @@
                 if (response.ok) {
                     const result = await response.json();
                     if (result.success) {
-                        // Cambiar botón a verde temporalmente
                         btnElement.classList.replace('btn-warning', 'btn-success');
                         btnElement.innerHTML = '<i class="bi bi-check-lg"></i> Listo';
 
-                        // Recalcular las horas en la vista
                         actualizarHorasEnFila(idAsistencia, entrada, salida);
                         filtrarYCalcular();
 
@@ -256,7 +249,6 @@
             }
         }
 
-        // RECALCULA LAS HORAS LOCALMENTE TRAS GUARDAR
         function actualizarHorasEnFila(id, entrada, salida) {
             const [hE, mE] = entrada.split(':').map(Number);
             const [hS, mS] = salida.split(':').map(Number);
