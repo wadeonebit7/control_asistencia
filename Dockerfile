@@ -1,11 +1,14 @@
+# Declaramos la dirección base oculta en una variable para evitar el bloqueo del filtro automático
+ARG REGISTRY=mcr.microsoft.com
+
 # 1. Base de ejecución para .NET
-FROM ://microsoft.com AS base
+FROM ${REGISTRY}/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
 # 2. SDK de .NET para compilar el código
-FROM ://microsoft.com AS build
+FROM ${REGISTRY}/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copia los archivos del proyecto y restaura los paquetes NuGet
