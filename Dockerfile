@@ -5,7 +5,18 @@ ARG REGISTRY=mcr.microsoft.com
 FROM ${REGISTRY}/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
+
+# =========================================================================
+# INSTALACIÓN DE LIBRERÍAS LINUX PARA PDFIUM, OCR Y PROCESAMIENTO DE IMÁGENES
+# Soluciona el problema de las Regex/OCR que no leen archivos en la nube
+# =========================================================================
+RUN apt-get update && apt-get install -y --allow-unauthenticated \
+    libgdiplus \
+    libc6-dev \
+    tesseract-ocr \
+    tesseract-ocr-spa \
+    libtesseract-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # 2. SDK de .NET para compilar el código
 FROM ${REGISTRY}/dotnet/sdk:8.0 AS build

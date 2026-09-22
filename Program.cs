@@ -1,6 +1,7 @@
 using control_asistencia.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides; // <-- IMPORTANTE: Necesario para Render
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,10 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 35))));
-
 
 // Servicio de Autenticacion
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -22,19 +21,36 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8); // Duración de la sesión
     });
 
+// =========================================================================
+// CONFIGURACIÓN PARA RENDER (PROXY INVERSO)
+// Esto soluciona el crash del error [7] Antiforgery al hacer Login o POST
+// =========================================================================
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
+
+// =========================================================================
+// MIDDLEWARE DE PROXY (¡Debe ir antes de cualquier otro Use...!)
+// =========================================================================
+app.UseForwardedHeaders();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
+// COMENTADO INTENCIONALMENTE: En Render, la redirección HTTPS la hace su propio proxy.
+// Dejar esto activo puede causar un bucle infinito de redirecciones y romper la app.
+// app.UseHttpsRedirection(); 
 
+app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthentication();
