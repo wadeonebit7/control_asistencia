@@ -1,10 +1,10 @@
-# 1. Base de ejecuci贸n para .NET
+# 1. Base de ejecuci髇 para .NET
 FROM ://microsoft.com AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-# 2. SDK de .NET para compilar el c贸digo
+# 2. SDK de .NET para compilar el c骴igo
 FROM ://microsoft.com AS build
 WORKDIR /src
 
@@ -17,11 +17,11 @@ COPY . .
 WORKDIR "/src/."
 RUN dotnet build "control_asistencia.csproj" -c Release -o /app/build
 
-# 3. Publicaci贸n de la app optimizada
+# 3. Publicaci髇 de la app optimizada
 FROM build AS publish
 RUN dotnet publish "control_asistencia.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# 4. Configuraci贸n final del arranque
+# 4. Configuraci髇 final del arranque
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
