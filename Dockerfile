@@ -8,19 +8,22 @@ EXPOSE 8080
 
 # =========================================================================
 # INSTALACIÓN DE LIBRERÍAS LINUX PARA PDFIUM, OCR Y PROCESAMIENTO DE IMÁGENES
-# Incluye la descarga manual de libpdfium.so para evitar problemas con NuGet
+# Incluye la descarga manual de libpdfium.so y los enlaces para Tesseract
 # =========================================================================
 RUN apt-get update && apt-get install -y --allow-unauthenticated \
     libgdiplus \
     libc6-dev \
     tesseract-ocr \
     tesseract-ocr-spa \
-    libtesseract-dev \
+    libtesseract5 \
+    libleptonica5 \
     wget \
     tar \
     && wget -q -O pdfium.tgz https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz \
     && tar -xzf pdfium.tgz \
     && cp lib/libpdfium.so /usr/lib/libpdfium.so \
+    && ln -s /usr/lib/x86_64-linux-gnu/libtesseract.so.5 /usr/lib/libtesseract.so || true \
+    && ln -s /usr/lib/x86_64-linux-gnu/libleptonica.so.6 /usr/lib/liblept.so || true \
     && rm -rf pdfium.tgz bin lib include \
     && rm -rf /var/lib/apt/lists/*
 
