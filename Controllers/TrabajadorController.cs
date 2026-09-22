@@ -300,6 +300,8 @@ namespace control_asistencia.Controllers
 
 
 
+
+
         [HttpPost]
         public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento, [FromForm] string tipoSolicitud)
         {
@@ -308,6 +310,7 @@ namespace control_asistencia.Controllers
             string extension = Path.GetExtension(documento.FileName).ToLower();
             string tempPath = Path.GetTempFileName();
             string tempPathWithExt = tempPath + extension;
+            string outputPrefix = Path.Combine(Path.GetTempPath(), "ocr_page_" + Guid.NewGuid());
 
             try
             {
@@ -317,47 +320,56 @@ namespace control_asistencia.Controllers
                 }
 
                 string textoExtraido = "";
-                string imagePathForOcr = tempPathWithExt;
 
-                // Si es PDF, lo convertimos a imagen PNG usando PdfiumViewer
                 if (extension == ".pdf")
                 {
-                    using (var pdfDocument = PdfiumViewer.PdfDocument.Load(tempPathWithExt))
+                    // Convertir PDF a imágenes PNG usando pdftoppm (nativo de Linux)
+                    var psiPdf = new ProcessStartInfo
                     {
-                        for (int i = 0; i < pdfDocument.PageCount; i++)
+                        FileName = "pdftoppm",
+                        Arguments = $"-png -r 300 \"{tempPathWithExt}\" \"{outputPrefix}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using (var processPdf = Process.Start(psiPdf))
+                    {
+                        processPdf.WaitForExit();
+                    }
+
+                    // Buscar todas las páginas convertidas (ej. ocr_page_xxx-1.png, ocr_page_xxx-2.png)
+                    string tempDir = Path.GetDirectoryName(outputPrefix);
+                    string filePrefix = Path.GetFileName(outputPrefix);
+                    var generatedImages = Directory.GetFiles(tempDir, filePrefix + "*.png").OrderBy(f => f).ToArray();
+
+                    foreach (var imgPath in generatedImages)
+                    {
+                        string outputBase = Path.GetTempFileName();
+                        var psiTess = new ProcessStartInfo
                         {
-                            using (var image = pdfDocument.Render(i, 300, 300, PdfiumViewer.PdfRenderFlags.CorrectFromDpi))
-                            {
-                                string pageTempPath = Path.GetTempFileName() + ".png";
-                                image.Save(pageTempPath, System.Drawing.Imaging.ImageFormat.Png);
+                            FileName = "tesseract",
+                            Arguments = $"\"{imgPath}\" \"{outputBase}\" -l spa",
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
 
-                                // Ejecutar Tesseract CLI por cada página
-                                string outputBase = Path.GetTempFileName();
-                                var psi = new ProcessStartInfo
-                                {
-                                    FileName = "tesseract",
-                                    Arguments = $"\"{pageTempPath}\" \"{outputBase}\" -l spa",
-                                    RedirectStandardOutput = true,
-                                    RedirectStandardError = true,
-                                    UseShellExecute = false,
-                                    CreateNoWindow = true
-                                };
-
-                                using (var process = Process.Start(psi))
-                                {
-                                    process.WaitForExit();
-                                }
-
-                                string txtFile = outputBase + ".txt";
-                                if (System.IO.File.Exists(txtFile))
-                                {
-                                    textoExtraido += "\n" + await System.IO.File.ReadAllTextAsync(txtFile);
-                                    System.IO.File.Delete(txtFile);
-                                }
-                                System.IO.File.Delete(pageTempPath);
-                                System.IO.File.Delete(outputBase);
-                            }
+                        using (var processTess = Process.Start(psiTess))
+                        {
+                            processTess.WaitForExit();
                         }
+
+                        string txtFile = outputBase + ".txt";
+                        if (System.IO.File.Exists(txtFile))
+                        {
+                            textoExtraido += "\n" + await System.IO.File.ReadAllTextAsync(txtFile);
+                            System.IO.File.Delete(txtFile);
+                        }
+                        System.IO.File.Delete(outputBase);
+                        System.IO.File.Delete(imgPath); // Limpiar imagen de página temporal
                     }
                 }
                 else
@@ -388,12 +400,12 @@ namespace control_asistencia.Controllers
                     System.IO.File.Delete(outputBase);
                 }
 
-                // Limpieza de archivos temporales
+                // Limpieza del archivo original temporal
                 if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
 
                 // =========================================================================
-                // EXTRACCIÓN DE DATOS MEDENCIÓN DE REGEX
+                // EXTRACCIÓN DE DATOS MEDIANTE REGEX
                 // =========================================================================
 
                 if (tipoSolicitud == "LICENCIA_MEDICA")
@@ -479,6 +491,7 @@ namespace control_asistencia.Controllers
                 return StatusCode(500, $"Error OCR Interno: {ex.Message}");
             }
         }
+
 
 
         [HttpGet]
