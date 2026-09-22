@@ -24,6 +24,9 @@ namespace control_asistencia.Controllers
         // =======================================================
         // 1. CARGA LA VISTA PRINCIPAL (Index)
         // =======================================================
+
+
+
         public async Task<IActionResult> Index()
         {
             Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
@@ -347,6 +350,40 @@ namespace control_asistencia.Controllers
 
 
 
+        [HttpGet]
+        public async Task<IActionResult> ObtenerTodosUsuariosSistema()
+        {
+            var usuarios = await _context.Usuarios
+                .OrderByDescending(u => u.Id)
+                .Select(u => new {
+                    id = u.Id,
+                    correo = u.Personal != null ? u.Personal.Correo : $"Usuario #{u.Id}",
+                    fechaCreacion = u.CreateAt.ToShortDateString(),
+                    estado = u.Estado
+                })
+                .ToListAsync();
+
+            return Json(usuarios);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CambiarEstadoUsuario(int idUsuario, bool nuevoEstado)
+        {
+            var usuario = await _context.Usuarios.FindAsync(idUsuario);
+            if (usuario == null)
+            {
+                TempData["Error"] = "Usuario no encontrado.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            usuario.Estado = nuevoEstado;
+            _context.Usuarios.Update(usuario);
+            await _context.SaveChangesAsync();
+
+            TempData["Mensaje"] = nuevoEstado ? "El usuario ha sido activado exitosamente." : "El usuario ha sido desactivado exitosamente.";
+            return RedirectToAction(nameof(Index));
+        }
 
 
 
