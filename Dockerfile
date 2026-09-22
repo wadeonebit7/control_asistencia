@@ -8,7 +8,7 @@ EXPOSE 8080
 
 # =========================================================================
 # INSTALACIÓN DE LIBRERÍAS LINUX PARA PDFIUM, OCR Y PROCESAMIENTO DE IMÁGENES
-# Soluciona el problema de las Regex/OCR que no leen archivos en la nube
+# Incluye la descarga manual de libpdfium.so para evitar problemas con NuGet
 # =========================================================================
 RUN apt-get update && apt-get install -y --allow-unauthenticated \
     libgdiplus \
@@ -16,6 +16,12 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated \
     tesseract-ocr \
     tesseract-ocr-spa \
     libtesseract-dev \
+    wget \
+    tar \
+    && wget -q -O pdfium.tgz https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz \
+    && tar -xzf pdfium.tgz \
+    && cp lib/libpdfium.so /usr/lib/libpdfium.so \
+    && rm -rf pdfium.tgz bin lib include \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. SDK de .NET para compilar el código
