@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PdfiumViewer;
 using System;
+using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
@@ -299,13 +300,11 @@ namespace control_asistencia.Controllers
 
 
 
-
         [HttpPost]
         public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento, [FromForm] string tipoSolicitud)
         {
             if (documento == null || documento.Length == 0) return BadRequest("Archivo vacío.");
 
-            // 1. Crear temporal CON EXTENSIÓN (Vital en Linux para que Pix y Pdfium no colapsen)
             string extension = Path.GetExtension(documento.FileName).ToLower();
             string tempPath = Path.GetTempFileName();
             string tempPathWithExt = tempPath + extension;
@@ -318,68 +317,83 @@ namespace control_asistencia.Controllers
                 }
 
                 string textoExtraido = "";
+                string imagePathForOcr = tempPathWithExt;
 
-                // 2. Lógica híbrida para encontrar tessdata (Local vs Linux System)
-                string tessdataPath = Path.Combine(_env.ContentRootPath, "tessdata");
-                if (!Directory.Exists(tessdataPath))
+                // Si es PDF, lo convertimos a imagen PNG usando PdfiumViewer
+                if (extension == ".pdf")
                 {
-                    // Si el .csproj falló en copiar, forzamos a usar la carpeta nativa de Linux instalada por Docker
-                    if (Directory.Exists("/usr/share/tesseract-ocr/4.00/tessdata"))
-                        tessdataPath = "/usr/share/tesseract-ocr/4.00/tessdata";
-                    else if (Directory.Exists("/usr/share/tesseract-ocr/5/tessdata"))
-                        tessdataPath = "/usr/share/tesseract-ocr/5/tessdata";
-                }
-
-                // Estos mensajes SÍ aparecerán en los logs de Render
-                Console.WriteLine($"[OCR INIT] Intentando leer archivo: {tempPathWithExt}");
-                Console.WriteLine($"[OCR INIT] Ruta Tessdata resuelta: {tessdataPath}");
-
-                using (var engine = new TesseractEngine(tessdataPath, "spa", EngineMode.Default))
-                {
-                    engine.SetVariable("tessedit_pageseg_mode", "3");
-
-                    if (extension == ".pdf")
+                    using (var pdfDocument = PdfiumViewer.PdfDocument.Load(tempPathWithExt))
                     {
-                        using (var pdfDocument = PdfiumViewer.PdfDocument.Load(tempPathWithExt))
+                        for (int i = 0; i < pdfDocument.PageCount; i++)
                         {
-                            for (int i = 0; i < pdfDocument.PageCount; i++)
+                            using (var image = pdfDocument.Render(i, 300, 300, PdfiumViewer.PdfRenderFlags.CorrectFromDpi))
                             {
-                                using (var image = pdfDocument.Render(i, 300, 300, PdfiumViewer.PdfRenderFlags.CorrectFromDpi))
+                                string pageTempPath = Path.GetTempFileName() + ".png";
+                                image.Save(pageTempPath, System.Drawing.Imaging.ImageFormat.Png);
+
+                                // Ejecutar Tesseract CLI por cada página
+                                string outputBase = Path.GetTempFileName();
+                                var psi = new ProcessStartInfo
                                 {
-                                    string pageTempPath = Path.GetTempFileName() + ".png";
-                                    image.Save(pageTempPath, System.Drawing.Imaging.ImageFormat.Png);
+                                    FileName = "tesseract",
+                                    Arguments = $"\"{pageTempPath}\" \"{outputBase}\" -l spa",
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true
+                                };
 
-                                    using (var img = Pix.LoadFromFile(pageTempPath))
-                                    {
-                                        using (var page = engine.Process(img))
-                                        {
-                                            textoExtraido += "\n" + page.GetText();
-                                        }
-                                    }
-                                    System.IO.File.Delete(pageTempPath);
+                                using (var process = Process.Start(psi))
+                                {
+                                    process.WaitForExit();
                                 }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Imágenes directas (.jpeg, .png, etc)
-                        using (var img = Pix.LoadFromFile(tempPathWithExt))
-                        {
-                            using (var page = engine.Process(img))
-                            {
-                                textoExtraido = page.GetText();
+
+                                string txtFile = outputBase + ".txt";
+                                if (System.IO.File.Exists(txtFile))
+                                {
+                                    textoExtraido += "\n" + await System.IO.File.ReadAllTextAsync(txtFile);
+                                    System.IO.File.Delete(txtFile);
+                                }
+                                System.IO.File.Delete(pageTempPath);
+                                System.IO.File.Delete(outputBase);
                             }
                         }
                     }
                 }
+                else
+                {
+                    // Si es imagen directa (.jpg, .jpeg, .png)
+                    string outputBase = Path.GetTempFileName();
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "tesseract",
+                        Arguments = $"\"{tempPathWithExt}\" \"{outputBase}\" -l spa",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
 
-                // Limpieza de temporales
+                    using (var process = Process.Start(psi))
+                    {
+                        process.WaitForExit();
+                    }
+
+                    string txtFile = outputBase + ".txt";
+                    if (System.IO.File.Exists(txtFile))
+                    {
+                        textoExtraido = await System.IO.File.ReadAllTextAsync(txtFile);
+                        System.IO.File.Delete(txtFile);
+                    }
+                    System.IO.File.Delete(outputBase);
+                }
+
+                // Limpieza de archivos temporales
                 if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
 
                 // =========================================================================
-                // EXTRACCIÓN DEPENDIENDO DE LO QUE SELECCIONÓ EL USUARIO
+                // EXTRACCIÓN DE DATOS MEDENCIÓN DE REGEX
                 // =========================================================================
 
                 if (tipoSolicitud == "LICENCIA_MEDICA")
@@ -455,19 +469,16 @@ namespace control_asistencia.Controllers
             }
             catch (Exception ex)
             {
-                // ESTO ES LO MÁS IMPORTANTE PARA EL DEPURADO
                 if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
 
-                Console.WriteLine("================ EXCEPCIÓN OCR CRÍTICA ================");
+                Console.WriteLine("================ EXCEPCIÓN OCR CLI CRÍTICA ================");
                 Console.WriteLine(ex.ToString());
-                Console.WriteLine("=======================================================");
+                Console.WriteLine("===========================================================");
 
                 return StatusCode(500, $"Error OCR Interno: {ex.Message}");
             }
         }
-
-
 
 
         [HttpGet]
