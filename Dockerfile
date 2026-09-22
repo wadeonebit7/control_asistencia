@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated \
     tesseract-ocr-spa \
     wget \
     tar \
-    # 1. Solución para libdl (Redirige las llamadas a la librería estándar de C)
+    # 1. Solución para libdl en .NET 8 Linux
     && ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/libdl.so || true \
     && ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/libdl.so.2 || true \
     # 2. Descargar Pdfium nativo para Linux
@@ -43,14 +43,15 @@ RUN dotnet build "control_asistencia.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "control_asistencia.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# 4. Configuración final del arranque
+# 4. Configuración final del arranque y binarios nativos de Tesseract/Leptonica
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-# Descarga directa del binario nativo de Leptonica exactamente donde Tesseract lo busca en runtime
+# Descarga directa y segura de los binarios exactos x64 que exige el NuGet de Tesseract en runtime
 RUN mkdir -p /app/x64 && \
-    wget -q -O /app/x64/libleptonica-1.82.0.so https://github.com/mainlyer/ocr-poc-tesseract/raw/main/x64/libleptonica-1.82.0.so || \
-    wget -q -O /app/x64/libleptonica-1.82.0.so https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libleptonica-1.82.0.so || true
+    wget -q -O /app/x64/libleptonica-1.82.0.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libleptonica-1.82.0.so" && \
+    wget -q -O /app/x64/libtesseract41.so "https://raw.githubusercontent.com/charlesw/tesseract/master/Net20/Tesseract.Tests/x64/libtesseract41.so" || true && \
+    chmod -R 755 /app/x64
 
 ENTRYPOINT ["dotnet", "control_asistencia.dll"]
