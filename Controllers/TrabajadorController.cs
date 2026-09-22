@@ -102,7 +102,7 @@ namespace control_asistencia.Controllers
                     IdUsuario = usuario.Id,
                     CreateAt = DateTime.Now,
                     Estado = true,
-                    EstadoEntrada = "ATENTO",
+                    EstadoEntrada = "MARCADA",
                     EstadoSalida = "PENDIENTE",
                     HoraEntradaReal = horaActual.TimeOfDay,
                     HoraSalidaReal = TimeSpan.Zero, // O TimeSpan.Zero según tu inicializador por defecto
@@ -139,7 +139,7 @@ namespace control_asistencia.Controllers
 
                 // Actualizamos con la hora de salida real
                 asistenciaHoy.HoraSalidaReal = horaActual.TimeOfDay;
-                asistenciaHoy.EstadoSalida = "COMPLETADO";
+                asistenciaHoy.EstadoSalida = "MARCADA";
 
                 // Cálculo de horas trabajadas usando TimeSpan directamente compatible con tu modelo
                 var horasTrabajadasSpan = horaActual.TimeOfDay - asistenciaHoy.HoraEntradaReal;
