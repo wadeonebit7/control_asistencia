@@ -133,6 +133,7 @@
         display: inline-block;
     }
 
+   
     @@keyframes spin {
         100% {
             transform: rotate(360deg);
@@ -158,6 +159,15 @@
             box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
         }
     }
+
+
+    .highlight-ocr {
+        animation: pulseOcr 2s ease-out;
+        border-color: #10b981 !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+    }
+
+ 
 </style>
 
 <!-- BIENVENIDA AL USUARIO -->
@@ -580,12 +590,16 @@
             formData.append("documento", file);
             formData.append("tipoSolicitud", selectTipoSolicitud.value);
 
+            // Fetch actualizado para leer errores desde C#
             fetch('/Trabajador/ExtraerDatosLicencia', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => {
-                if(!response.ok) throw new Error("Error procesando documento");
+            .then(async response => {
+                if(!response.ok) {
+                    let errorText = await response.text();
+                    throw new Error(errorText);
+                }
                 return response.json();
             })
             .then(data => {
@@ -632,6 +646,9 @@
                 // RESTAURAR BOTÓN EN CASO DE ERROR
                 btnSubmit.removeAttribute('disabled');
                 btnSubmit.innerHTML = `<i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos`;
+
+                // Muestra la alerta nativa con el mensaje del servidor
+                alert("Fallo la extracción: " + error.message);
             });
         });
     </script>
