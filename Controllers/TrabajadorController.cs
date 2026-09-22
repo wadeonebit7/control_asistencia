@@ -46,7 +46,6 @@ namespace control_asistencia.Controllers
 
         [AllowAnonymous]
         [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
         {
             if (string.IsNullOrEmpty(claveDinamica))
@@ -57,7 +56,7 @@ namespace control_asistencia.Controllers
 
             claveDinamica = claveDinamica.Trim().ToUpper();
 
-            // 1. Buscamos al usuario por su clave dinámica y estado activo
+            // 1. Buscamos al usuario
             var usuario = await _context.Usuarios
                 .Include(u => u.Personal)
                     .ThenInclude(p => p.Rol)
@@ -69,16 +68,15 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // 2. Conservamos tus TempData
+            // 2. Conservamos la sesión temporal para las vistas de Entrada/Salida
             TempData["IdUsuario"] = usuario.Id;
             TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
             TempData.Keep("IdUsuario");
             TempData.Keep("UsuarioLogueado");
 
             var fechaHoy = DateTime.Now.Date;
-            var horaActual = DateTime.Now;
 
-            // 3. Verificamos que la jornada del día esté habilitada
+            // 3. Verificamos la jornada
             var jornadaHabilitada = await _context.habilitar_asistencia
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
@@ -88,74 +86,28 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            // 4. LÓGICA INTELIGENTE: Verificar si ya existe un registro de asistencia hoy
+            // 4. LÓGICA DE ENRUTAMIENTO: ¿A qué pantalla lo enviamos?
             var asistenciaHoy = await _context.Asistencia
                 .FirstOrDefaultAsync(a => a.IdUsuario == usuario.Id && a.CreateAt.Date == fechaHoy);
 
             if (asistenciaHoy == null)
             {
-                // =========================================================
-                // CASO 1: PRIMER INGRESO -> MARCAJE DE ENTRADA (INSERT)
-                // =========================================================
-                var nuevaAsistencia = new control_asistencia.Models.Asistencia
-                {
-                    IdUsuario = usuario.Id,
-                    CreateAt = DateTime.Now,
-                    Estado = true,
-                    EstadoEntrada = "MARCADA",
-                    EstadoSalida = "PENDIENTE",
-                    HoraEntradaReal = horaActual.TimeOfDay,
-                    HoraSalidaReal = TimeSpan.Zero, // O TimeSpan.Zero según tu inicializador por defecto
-                    HorasReales = null,
-                    HorasTrabajadas = null,
-                    IdHabilitarAsistencia = jornadaHabilitada.Id
-                };
-
-                _context.Asistencia.Add(nuevaAsistencia);
-                await _context.SaveChangesAsync();
-
-                TempData["Mensaje"] = $"¡Bienvenido/a, {usuario.Personal.Nombre}! Tu hora de ENTRADA ha sido registrada a las {horaActual:HH:mm:ss}.";
+                // NO TIENE ASISTENCIA HOY -> Lo enviamos a la pantalla de confirmar ENTRADA
+                return RedirectToAction("EntradaAsistencia", "Trabajador");
             }
             else
             {
-                // =========================================================
-                // CASO 2: SEGUNDO INGRESO -> MARCAJE DE SALIDA (UPDATE)
-                // =========================================================
-
-                // Validar si ya marcó su salida previamente (si es diferente de TimeSpan.Zero o TimeSpan.MinValue)
-                if (asistenciaHoy.HoraSalidaReal != TimeSpan.Zero)
+                // YA TIENE ASISTENCIA HOY -> Validamos si ya salió
+                if (asistenciaHoy.EstadoSalida != "PENDIENTE")
                 {
                     TempData["Error"] = $"Estimado/a {usuario.Personal.Nombre}, ya registraste tu entrada y salida el día de hoy.";
                     return RedirectToAction("LogoutAsistencia", "Auth");
                 }
 
-                // Validación para evitar doble toque accidental (ej. 1 minuto mínimo)
-                var diferenciaMinutos = (horaActual.TimeOfDay - asistenciaHoy.HoraEntradaReal).TotalMinutes;
-                if (diferenciaMinutos < 1)
-                {
-                    TempData["Error"] = "Debe esperar al menos 1 minuto desde su marcaje de entrada para registrar la salida.";
-                    return RedirectToAction("LogoutAsistencia", "Auth");
-                }
-
-                // Actualizamos con la hora de salida real
-                asistenciaHoy.HoraSalidaReal = horaActual.TimeOfDay;
-                asistenciaHoy.EstadoSalida = "MARCADA";
-
-                // Cálculo de horas trabajadas usando TimeSpan directamente compatible con tu modelo
-                var horasTrabajadasSpan = horaActual.TimeOfDay - asistenciaHoy.HoraEntradaReal;
-                asistenciaHoy.HorasReales = horasTrabajadasSpan;
-                asistenciaHoy.HorasTrabajadas = horasTrabajadasSpan;
-
-                _context.Asistencia.Update(asistenciaHoy);
-                await _context.SaveChangesAsync();
-
-                TempData["Mensaje"] = $"¡Hasta luego, {usuario.Personal.Nombre}! Tu hora de SALIDA ha sido registrada a las {horaActual:HH:mm:ss}.";
+                // TIENE ENTRADA PERO NO HA SALIDO -> Lo enviamos a la pantalla de confirmar SALIDA
+                return RedirectToAction("SalidaAsistencia", "Trabajador");
             }
-
-            return RedirectToAction("LogoutAsistencia", "Auth");
         }
-
-
 
 
 
@@ -174,6 +126,21 @@ namespace control_asistencia.Controllers
         }
 
 
+
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult RedirigirEntrada()
+        {
+            // Vista intermedia que muestra el mensaje verde por 1.5 segundos y salta a la confirmación
+            return View("~/Views/Auth/RedirigirAccion.cshtml", Url.Action("EntradaAsistencia", "Trabajador"));
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult RedirigirSalida()
+        {
+            return View("~/Views/Auth/RedirigirAccion.cshtml", Url.Action("SalidaAsistencia", "Trabajador"));
+        }
 
 
 
