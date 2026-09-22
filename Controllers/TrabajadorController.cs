@@ -302,7 +302,6 @@ namespace control_asistencia.Controllers
 
 
 
-
         [HttpPost]
         public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento, [FromForm] string tipoSolicitud)
         {
@@ -324,7 +323,6 @@ namespace control_asistencia.Controllers
 
                 if (extension == ".pdf")
                 {
-                    // Convertir PDF a imágenes PNG usando pdftoppm (sin redirección para evitar bloqueos)
                     var psiPdf = new ProcessStartInfo
                     {
                         FileName = "pdftoppm",
@@ -370,7 +368,6 @@ namespace control_asistencia.Controllers
                 }
                 else
                 {
-                    // Si es imagen directa (.jpg, .jpeg, .png)
                     string outputBase = Path.GetTempFileName();
                     var psi = new ProcessStartInfo
                     {
@@ -398,8 +395,11 @@ namespace control_asistencia.Controllers
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
 
                 // =========================================================================
-                // EXTRACCIÓN DE DATOS MEDIANTE REGEX
+                // DEPURACIÓN: Ver qué leyó exactamente Tesseract en la consola de Render
                 // =========================================================================
+                Console.WriteLine("========== TEXTO EXTRAÍDO POR OCR ==========");
+                Console.WriteLine(textoExtraido);
+                Console.WriteLine("============================================");
 
                 if (tipoSolicitud == "LICENCIA_MEDICA")
                 {
@@ -484,6 +484,8 @@ namespace control_asistencia.Controllers
                 return StatusCode(500, $"Error OCR Interno: {ex.Message}");
             }
         }
+
+
 
 
         [HttpGet]
