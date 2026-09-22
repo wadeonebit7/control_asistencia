@@ -1,29 +1,40 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="PdfiumViewer" Version="2.13.0" />
-    <PackageReference Include="PdfiumViewer.Native.x86_64.v8-xfa" Version="2018.4.8.256" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
-    <PackageReference Include="Tesseract" Version="5.2.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="PdfiumViewer" Version="2.13.0" />
+		<!-- Binarios de Pdfium para que funcione en tu Windows (Local) -->
+		<PackageReference Include="PdfiumViewer.Native.x86_64.v8-xfa" Version="2018.4.8.256" />
+		<!-- Binarios de Pdfium para que funcione en Linux (Render) -->
+		<PackageReference Include="bclements.PdfiumViewer.Native.x86_64.linux" Version="2018.4.8.256" />
+		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+		<PackageReference Include="System.Drawing.Common" Version="10.0.12" />
+		<PackageReference Include="Tesseract" Version="5.2.0" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="tessdata\spa.traineddata">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<Folder Include="wwwroot\documentos_respaldo\LicenciaMedica\" />
+		<Folder Include="wwwroot\documentos_respaldo\PermisoAdministrativo\" />
+		<Folder Include="wwwroot\Licencia_Medica\" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="wwwroot\documentos_respaldo\LicenciaMedica\" />
-    <Folder Include="wwwroot\documentos_respaldo\PermisoAdministrativo\" />
-    <Folder Include="wwwroot\Licencia_Medica\" />
-  </ItemGroup>
+	<ItemGroup>
+		<!-- Asegura que el idioma del OCR se copie al contenedor de Render -->
+		<None Update="tessdata\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<!-- Asegura que los binarios nativos se copien al contenedor -->
+		<None Update="x64\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="x86\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
 </Project>
