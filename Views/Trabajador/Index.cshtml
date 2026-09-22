@@ -499,44 +499,97 @@
             window.location.href = `/Trabajador/Index?mes=${mesSeleccionado}`;
         });
 
-        // 2. Control Sincronizado Milimétricamente de la Clave Dinámica
+        // 2. Control Sincronizado e inteligente de la Clave Dinámica (Polling)
         const progressBar = document.getElementById('codeProgressBar');
         const timerText = document.getElementById('codeTimerText');
         const codeDisplay = document.getElementById('displayCode');
 
         let timeLeft = 60;
         let totalCycle = 60;
+        let claveActual = ''; 
+        let isSyncing = false; // Candado para evitar que el reloj siga restando
 
-        async function refrescarClaveDinamicaDesdeServidor() {
+        //Funcion que consulta al servidor
+        async function refrescarClaveDinamicaDesdeServidor(esReintento = false) {
             try {
                 let response = await fetch('/Trabajador/ObtenerClaveDinamicaActual');
                 if (response.ok) {
                     let data = await response.json();
+
+                    // Si es un reintento y la base de datos aún tiene la clave vieja, abortamos y pedimos esperar
+                    if (esReintento && data.claveDinamica === claveActual) {
+                        return false;
+                    }
+
+                    // Si es una clave nueva (o es la primera vez que carga la página)
+                    claveActual = data.claveDinamica;
                     codeDisplay.innerText = data.claveDinamica;
-                    if (data.segundosRestantes !== undefined) timeLeft = data.segundosRestantes;
+
+                    if (data.segundosRestantes !== undefined) {
+                        timeLeft = data.segundosRestantes;
+                    }
+                    return true; // Éxito, recibimos clave nueva
                 }
-            } catch (error) { console.error("Error clave:", error); }
+            } catch (error) {
+                console.error("Error consultando servidor:", error);
+            }
+            return false;
         }
 
-        refrescarClaveDinamicaDesdeServidor();
+        // Bucle que espera a que MySQL termine su trabajo
+        async function procesarSincronizacionSegura() {
+            isSyncing = true;
+            timerText.innerText = "Sincronizando con base de datos...";
+            progressBar.style.width = '100%';
+            // Cambiamos el color a naranja/amarillo para indicar que está procesando
+            progressBar.className = 'progress-bar bg-warning progress-bar-striped progress-bar-animated';
 
-        function updateTimer() {
-            timeLeft--;
-            if (timeLeft <= 0) {
-                refrescarClaveDinamicaDesdeServidor();
-                timeLeft = totalCycle;
+            let claveActualizada = false;
+
+            // Preguntamos repetidamente hasta que MySQL nos dé una clave diferente
+            while (!claveActualizada) {
+                claveActualizada = await refrescarClaveDinamicaDesdeServidor(true);
+
+                if (!claveActualizada) {
+                    // Si sigue siendo la misma, esperamos 1 segundo exacto antes de volver a molestar al servidor
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
+
+            // Cuando por fin se actualiza, quitamos el estado de carga y reanudamos
+            progressBar.className = 'progress-bar bg-info';
+            isSyncing = false;
+        }
+
+        // Función que mueve la barra cada segundo
+        function updateTimer() {
+            // Si está atascado esperando a la BD, no restamos tiempo
+            if (isSyncing) return;
+
+            timeLeft--;
+
+            // Cuando llega a 0, disparamos el proceso seguro
+            if (timeLeft <= 0) {
+                procesarSincronizacionSegura();
+                return;
+            }
+
+            // Actualización visual normal
             let percentage = (timeLeft / totalCycle) * 100;
             progressBar.style.width = percentage + '%';
             timerText.innerText = `Actualizando en ${timeLeft}s...`;
 
-            if(timeLeft <= 10) {
+            if (timeLeft <= 10) {
                 progressBar.classList.replace('bg-info', 'bg-danger');
             } else {
                 progressBar.classList.replace('bg-danger', 'bg-info');
             }
         }
-        setInterval(updateTimer, 1000);
+
+        // Arranque inicial: Cargar clave por primera vez y encender el reloj
+        refrescarClaveDinamicaDesdeServidor().then(() => {
+            setInterval(updateTimer, 1000);
+        });
 
         // 3. Lógica Formulario: Ocultar y Mostrar Bloques
         const selectTipoSolicitud = document.getElementById('tipoSolicitud');
