@@ -44,6 +44,7 @@ namespace control_asistencia.Controllers
         }
 
 
+
         [AllowAnonymous]
         [HttpPost]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
@@ -68,6 +69,16 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            // =====================================================================
+            // NUEVA VALIDACIÓN: BLOQUEAR SI EL USUARIO ESTÁ CON LICENCIA
+            // =====================================================================
+            if (usuario.Status == "LICENCIA")
+            {
+                TempData["Error"] = $"Estimado/a {usuario.Personal.Nombre}, actualmente te encuentras con Licencia Médica activa. No puedes marcar asistencia.";
+                return RedirectToAction("LogoutAsistencia", "Auth");
+            }
+            // =====================================================================
+
             // 2. Conservamos la sesión temporal para las vistas de Entrada/Salida
             TempData["IdUsuario"] = usuario.Id;
             TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
@@ -77,7 +88,7 @@ namespace control_asistencia.Controllers
             var fechaHoy = DateTime.Now.Date;
 
             // 3. Verificamos la jornada
-            var jornadaHabilitada = await _context.habilitar_asistencia
+            var jornadaHabilitada = await _context.habilitar_asistencia // Ojo: asegúrate que tu DbSet se llame HabilitarAsistencia con mayúsculas si sigues las convenciones de C#
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
             if (jornadaHabilitada == null)
@@ -108,7 +119,6 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("SalidaAsistencia", "Trabajador");
             }
         }
-
 
 
         [AllowAnonymous]
