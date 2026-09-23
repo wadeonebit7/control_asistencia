@@ -28,21 +28,38 @@ namespace control_asistencia.Controllers
             _env = env;
         }
 
+
+
         [Authorize(Roles = "EMPLEADO")]
         [HttpGet]
         public async Task<IActionResult> Index(int? mes)
         {
-            int idUsuarioLogueado = 1;
+            // 1. OBTENER EL ID REAL DEL USUARIO LOGUEADO DESDE SU SESIÓN
+            var claimId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (claimId == null) return RedirectToAction("Logout", "Auth"); // Si por alguna razón no hay sesión, lo saca
+
+            int idUsuarioLogueado = int.Parse(claimId.Value);
+
             int mesConsulta = mes ?? DateTime.Now.Month;
 
+            // 2. Traer la ASISTENCIA del usuario real
             var registrosAsistencia = await _context.Asistencia
                 .Where(a => a.IdUsuario == idUsuarioLogueado && a.CreateAt.Month == mesConsulta)
                 .OrderByDescending(a => a.CreateAt)
                 .ToListAsync();
 
+            // 3. Traer las SOLICITUDES del usuario real (Incluyendo la respuesta de RRHH)
+            var misSolicitudes = await _context.Solicitudes
+                .Include(s => s.Logs)
+                .Where(s => s.IdUsuario == idUsuarioLogueado && s.Estado == true)
+                .OrderByDescending(s => s.CreateAt)
+                .ToListAsync();
+
+            // 4. Guardar las solicitudes en el ViewBag para leerlas en la 4ta Pestaña
+            ViewBag.MisSolicitudes = misSolicitudes;
+
             return View(registrosAsistencia);
         }
-
 
 
         [AllowAnonymous]

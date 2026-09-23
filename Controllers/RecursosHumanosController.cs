@@ -18,12 +18,17 @@ namespace control_asistencia.Controllers
             _context = context;
         }
 
+
+        [Authorize(Roles = "RRHH, ADMIN")]
+        [HttpGet]
         public async Task<IActionResult> Index()
         {
+            // 1. Calcular KPIs de la parte superior
             ViewBag.TotalPendientes = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "PENDIENTE" && s.Estado == true);
             ViewBag.TotalAprobadas = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "APROBADO" && s.Estado == true);
             ViewBag.TotalRechazadas = await _context.Solicitudes.CountAsync(s => s.EstadoSolicitud == "RECHAZADO" && s.Estado == true);
 
+            // 2. Traer Solicitudes Pendientes para la Bandeja de Entrada (Modelo principal)
             var solicitudesPendientes = await _context.Solicitudes
                 .Include(s => s.Usuario)
                     .ThenInclude(u => u.Personal)
@@ -31,8 +36,21 @@ namespace control_asistencia.Controllers
                 .OrderBy(s => s.CreateAt)
                 .ToListAsync();
 
+            // 3. NUEVO: Traer Historial de Resoluciones para la segunda tabla
+            var historial = await _context.Solicitudes
+                .Include(s => s.Usuario)
+                    .ThenInclude(u => u.Personal)
+                .Include(s => s.Logs) // Fundamental para poder leer "Mi Respuesta" en la tabla
+                .Where(s => s.EstadoSolicitud != "PENDIENTE" && s.Estado == true)
+                .OrderByDescending(s => s.CreateAt)
+                .ToListAsync();
+
+            // 4. Enviar el historial a la vista
+            ViewBag.Historial = historial;
+
             return View(solicitudesPendientes);
         }
+
 
         public async Task<IActionResult> Personal()
         {

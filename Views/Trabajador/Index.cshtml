@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Panel de Empleado - Control de Asistencia";
 
-    // Si la URL no trae un mes explícito, por defecto seleccionamos el mes actual (Septiembre 2026 = 9)
+    // Si la URL no trae un mes explícito, por defecto seleccionamos el mes actual
     int mesActualPorDefecto = DateTime.Now.Month;
     int mesSeleccionado = mesActualPorDefecto;
 
@@ -133,7 +133,6 @@
         display: inline-block;
     }
 
-   
     @@keyframes spin {
         100% {
             transform: rotate(360deg);
@@ -159,15 +158,6 @@
             box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
         }
     }
-
-
-    .highlight-ocr {
-        animation: pulseOcr 2s ease-out;
-        border-color: #10b981 !important;
-        background: rgba(16, 185, 129, 0.1) !important;
-    }
-
- 
 </style>
 
 <!-- BIENVENIDA AL USUARIO -->
@@ -215,6 +205,12 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link px-4 py-2" id="justificacion-tab" data-bs-toggle="pill" data-bs-target="#justificacion-pane" type="button" role="tab" aria-selected="false">
                 <i class="bi bi-file-earmark-text me-2"></i> Nueva Justificación
+            </button>
+        </li>
+        <!-- NUEVA PESTAÑA: MIS SOLICITUDES -->
+        <li class="nav-item" role="presentation">
+            <button class="nav-link px-4 py-2" id="mis-solicitudes-tab" data-bs-toggle="pill" data-bs-target="#mis-solicitudes-pane" type="button" role="tab" aria-selected="false">
+                <i class="bi bi-folder2-open me-2"></i> Mis Solicitudes
             </button>
         </li>
     </ul>
@@ -488,6 +484,84 @@
             </div>
         </div>
 
+        <!-- PESTAÑA 4: MIS SOLICITUDES (NUEVO) -->
+        <div class="tab-pane fade" id="mis-solicitudes-pane" role="tabpanel">
+            <div class="dashboard-card p-4">
+                <div class="d-flex align-items-center mb-4">
+                    <h5 class="text-white mb-0"><i class="bi bi-folder2-open text-info me-2"></i>Historial de Mis Solicitudes</h5>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th>FECHA ENVÍO</th>
+                                <th>TIPO TRÁMITE</th>
+                                <th>MI MOTIVO</th>
+                                <th>ESTADO</th>
+                                <th>RESPUESTA RRHH</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (ViewBag.MisSolicitudes != null && ((IEnumerable<control_asistencia.Models.Solicitudes>)ViewBag.MisSolicitudes).Any())
+                            {
+                                foreach (var item in (IEnumerable<control_asistencia.Models.Solicitudes>)ViewBag.MisSolicitudes)
+                                {
+                                    <tr>
+                                        <td>@item.CreateAt.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            @if (item.TipoSolicitud == "LICENCIA_MEDICA")
+                                            {
+                                                <span class="badge bg-primary text-white"><i class="bi bi-heart-pulse-fill me-1"></i> Licencia</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-info text-dark"><i class="bi bi-calendar2-check-fill me-1"></i> Ajuste</span>
+                                            }
+                                        </td>
+                                        <td class="text-muted small">@item.Motivo</td>
+                                        <td>
+                                            @if (item.EstadoSolicitud == "PENDIENTE")
+                                            {
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i> Pendiente</span>
+                                            }
+                                            else if (item.EstadoSolicitud == "APROBADO")
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Aprobado</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> Rechazado</span>
+                                            }
+                                        </td>
+                                        <td class="text-muted small">
+                                            @{
+                                                var respuestaLog = item.Logs.OrderByDescending(l => l.CreateAt).FirstOrDefault();
+                                                if (respuestaLog != null)
+                                                {
+                                                    @respuestaLog.Respuesta
+                                                }
+                                                else
+                                                {
+                                                    <span class="fst-italic opacity-50">Esperando revisión...</span>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No has enviado ninguna solicitud todavía.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -506,29 +580,23 @@
 
         let timeLeft = 60;
         let totalCycle = 60;
-        let claveActual = ''; 
-        let isSyncing = false; // Candado para evitar que el reloj siga restando
+        let claveActual = '';
+        let isSyncing = false;
 
-        //Funcion que consulta al servidor
         async function refrescarClaveDinamicaDesdeServidor(esReintento = false) {
             try {
                 let response = await fetch('/Trabajador/ObtenerClaveDinamicaActual');
                 if (response.ok) {
                     let data = await response.json();
-
-                    // Si es un reintento y la base de datos aún tiene la clave vieja, abortamos y pedimos esperar
                     if (esReintento && data.claveDinamica === claveActual) {
                         return false;
                     }
-
-                    // Si es una clave nueva (o es la primera vez que carga la página)
                     claveActual = data.claveDinamica;
                     codeDisplay.innerText = data.claveDinamica;
-
                     if (data.segundosRestantes !== undefined) {
                         timeLeft = data.segundosRestantes;
                     }
-                    return true; // Éxito, recibimos clave nueva
+                    return true;
                 }
             } catch (error) {
                 console.error("Error consultando servidor:", error);
@@ -536,49 +604,33 @@
             return false;
         }
 
-        // Bucle que espera a que MySQL termine su trabajo
         async function procesarSincronizacionSegura() {
             isSyncing = true;
             timerText.innerText = "Sincronizando con base de datos...";
             progressBar.style.width = '100%';
-            // Cambiamos el color a naranja/amarillo para indicar que está procesando
             progressBar.className = 'progress-bar bg-warning progress-bar-striped progress-bar-animated';
 
             let claveActualizada = false;
-
-            // Preguntamos repetidamente hasta que MySQL nos dé una clave diferente
             while (!claveActualizada) {
                 claveActualizada = await refrescarClaveDinamicaDesdeServidor(true);
-
                 if (!claveActualizada) {
-                    // Si sigue siendo la misma, esperamos 1 segundo exacto antes de volver a molestar al servidor
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
-
-            // Cuando por fin se actualiza, quitamos el estado de carga y reanudamos
             progressBar.className = 'progress-bar bg-info';
             isSyncing = false;
         }
 
-        // Función que mueve la barra cada segundo
         function updateTimer() {
-            // Si está atascado esperando a la BD, no restamos tiempo
             if (isSyncing) return;
-
             timeLeft--;
-
-            // Cuando llega a 0, disparamos el proceso seguro
             if (timeLeft <= 0) {
                 procesarSincronizacionSegura();
                 return;
             }
-
-            // Actualización visual normal
             let percentage = (timeLeft / totalCycle) * 100;
             progressBar.style.width = percentage + '%';
             timerText.innerText = `Actualizando en ${timeLeft}s...`;
-
             if (timeLeft <= 10) {
                 progressBar.classList.replace('bg-info', 'bg-danger');
             } else {
@@ -586,7 +638,6 @@
             }
         }
 
-        // Arranque inicial: Cargar clave por primera vez y encender el reloj
         refrescarClaveDinamicaDesdeServidor().then(() => {
             setInterval(updateTimer, 1000);
         });
@@ -599,7 +650,6 @@
 
         selectTipoSolicitud.addEventListener('change', function() {
             fileInput.removeAttribute('disabled');
-
             camposLicencia.classList.add('d-none');
             camposAjuste.classList.add('d-none');
 
@@ -634,7 +684,6 @@
                 imgViewer.classList.remove('d-none');
             }
 
-            // BLOQUEO DE SEGURIDAD: Desactivar botón y mostrar carga
             loadingText.classList.remove('d-none');
             btnSubmit.setAttribute('disabled', 'true');
             btnSubmit.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Transcribiendo documento...`;
@@ -643,7 +692,6 @@
             formData.append("documento", file);
             formData.append("tipoSolicitud", selectTipoSolicitud.value);
 
-            // Fetch actualizado para leer errores desde C#
             fetch('/Trabajador/ExtraerDatosLicencia', {
                 method: 'POST',
                 body: formData
@@ -657,13 +705,10 @@
             })
             .then(data => {
                 loadingText.classList.add('d-none');
-
-                // RESTAURAR BOTÓN
                 btnSubmit.removeAttribute('disabled');
                 btnSubmit.innerHTML = `<i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos`;
 
                 let fieldsMap = [];
-
                 if (selectTipoSolicitud.value === 'LICENCIA_MEDICA') {
                     fieldsMap = [
                         { id: 'folio', val: data.folio || 'Revisar manual' },
@@ -695,12 +740,8 @@
             .catch(error => {
                 console.error("Error OCR Backend:", error);
                 loadingText.classList.add('d-none');
-
-                // RESTAURAR BOTÓN EN CASO DE ERROR
                 btnSubmit.removeAttribute('disabled');
                 btnSubmit.innerHTML = `<i class="bi bi-send-fill me-2"></i> Enviar a Recursos Humanos`;
-
-                // Muestra la alerta nativa con el mensaje del servidor
                 alert("Fallo la extracción: " + error.message);
             });
         });
