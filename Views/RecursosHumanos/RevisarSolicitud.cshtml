@@ -1,4 +1,4 @@
-﻿@model control_asistencia.Models.Solicitudes
+@model control_asistencia.Models.Solicitudes
 
 @{
     ViewData["Title"] = "Revisar Solicitud - RRHH";
@@ -196,6 +196,7 @@
                     <i class="bi bi-chat-square-text-fill text-info me-2"></i> Respuesta de Recursos Humanos
                 </h5>
 
+                <!-- CORRECCIÓN APLICADA AQUÍ: Se eliminó asp-controller para que use el controlador actual por defecto -->
                 <form asp-action="GestionarSolicitud" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="id" value="@Model.Id" />
