@@ -330,35 +330,30 @@ namespace control_asistencia.Controllers
             return RedirectToAction("Index", "RecursosHumanos");
         }
 
+
 [HttpPost]
 [ValidateAntiForgeryToken]
 public async Task<IActionResult> GestionarSolicitud(int id, string accion, string respuestaRrgg)
 {
-    // 1. Identificar quién está revisando (RRHH)
     var claimId = User.FindFirst(ClaimTypes.NameIdentifier);
     if (claimId == null) return RedirectToAction("Logout", "Auth");
     int idUsuarioRevisor = int.Parse(claimId.Value);
 
-    // 2. Buscar la solicitud original con sus relaciones necesarias
     var solicitud = await _context.Solicitudes
         .Include(s => s.Usuario)
         .FirstOrDefaultAsync(s => s.Id == id);
 
     if (solicitud == null) return NotFound();
 
-    // 3. Capturar estado para trazabilidad
     string estadoAntiguo = solicitud.EstadoSolicitud;
     string estadoNuevo = accion == "APROBAR" ? "APROBADO" : "RECHAZADO";
 
-    // Usaremos una transacción de Entity Framework para garantizar atomicidad
     using var transaction = await _context.Database.BeginTransactionAsync();
     try
     {
-        // 4. Actualizar estado de la solicitud
         solicitud.EstadoSolicitud = estadoNuevo;
         _context.Update(solicitud);
 
-        // 5. Si la solicitud es APROBADA, generamos/impactamos la asistencia correspondiente
         if (estadoNuevo == "APROBADO")
         {
             if (solicitud.TipoSolicitud == "AJUSTE_ASISTENCIA")
@@ -370,7 +365,7 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
                 {
                     await ProcesarAsistenciaParaFechaAsync(
                         solicitud.IdUsuario, 
-                        ajuste.FechaAfectada, 
+                        ajuste.FechaAfectada.Date, 
                         ajuste.HoraEntrada, 
                         ajuste.HoraSalida, 
                         idUsuarioRevisor
@@ -384,10 +379,8 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
 
                 if (licencia != null)
                 {
-                    // Recorremos desde la Fecha de Inicio hasta la Fecha de Término (inclusive)
                     for (var fecha = licencia.FechaInicio.Date; fecha <= licencia.FechaTermino.Date; fecha = fecha.AddDays(1))
                     {
-                        // Omitir fines de semana si tu lógica de negocio lo requiere, o procesar todos los días corridos:
                         await ProcesarAsistenciaParaFechaAsync(
                             solicitud.IdUsuario, 
                             fecha, 
@@ -401,7 +394,6 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
             }
         }
 
-        // 6. Inserción en tabla LOG
         var nuevoLog = new Log
         {
             IdSolicitudes = solicitud.Id,
@@ -410,9 +402,8 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
             CreateAt = DateTime.Now
         };
         _context.Log.Add(nuevoLog);
-        await _context.SaveChangesAsync(); // Guardar para obtener el ID del Log
+        await _context.SaveChangesAsync();
 
-        // 7. Inserción en tabla LOG_MODIFICACION
         var logModificacion = new LogModificacion
         {
             IdLog = nuevoLog.Id,
@@ -423,7 +414,6 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
         };
         _context.LogModificacion.Add(logModificacion);
 
-        // Confirmar cambios globales
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -431,43 +421,45 @@ public async Task<IActionResult> GestionarSolicitud(int id, string accion, strin
     }
     catch (Exception ex)
     {
-        // Si ocurre un error (ej. falta de habilitación o fallo de BD), revertimos todo
         await transaction.RollbackAsync();
-        TempData["Mensaje"] = $"Error al procesar la solicitud: {ex.Message}. Operación cancelada.";
+        
+        // ESTO CAPTURARÁ EL ERROR REAL DE LA BASE DE DATOS EN TUS LOGS DE RENDER
+        string mensajeDetallado = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+        Console.WriteLine($"--- ERROR CRITICO EN GESTIONAR SOLICITUD: {mensajeDetallado} ---");
+        
+        TempData["Mensaje"] = $"Error al procesar la solicitud: {mensajeDetallado}";
     }
 
     return RedirectToAction(nameof(Index));
 }
 
-/// <label>Método Auxiliar Privado para Gestionar el Vínculo con Asistencia</label>
 private async Task ProcesarAsistenciaParaFechaAsync(int idUsuario, DateTime fecha, TimeSpan horaEntrada, TimeSpan horaSalida, int idAdmin, bool esLicencia = false)
 {
-    // A. Buscar si ya existe una "habilitación de asistencia" para ese día exacto
-    var habilitacion = await _context.Set<habilitar_asistencia>()
-        .FirstOrDefaultAsync(h => h.Fecha.Date == fecha.Date);
+    var fechaSoloDia = fecha.Date;
 
-    // Si el administrador nunca abrió asistencia para este día, creamos una por defecto para respaldar la justificación
+    // Búsqueda limpia compatible con MySQL para evitar errores de traducción de fechas
+    var habilitacion = await _context.Set<habilitar_asistencia>()
+        .FirstOrDefaultAsync(h => h.Fecha.Date == fechaSoloDia);
+
     if (habilitacion == null)
     {
         habilitacion = new habilitar_asistencia
         {
             AbiertoPor = idAdmin,
-            Fecha = fecha.Date,
+            Fecha = fechaSoloDia,
             HoraEntrada = new TimeSpan(9, 30, 0),
             HoraSalida = new TimeSpan(17, 30, 0),
             CreatAt = DateTime.Now
         };
         _context.Set<habilitar_asistencia>().Add(habilitacion);
-        await _context.SaveChangesAsync(); // Guardamos para obtener el Id de habilitación
+        await _context.SaveChangesAsync(); 
     }
 
-    // B. Verificar si el usuario ya tiene un registro de asistencia para esa fecha y habilitación
     var asistencia = await _context.Set<Asistencia>()
         .FirstOrDefaultAsync(a => a.IdUsuario == idUsuario && a.IdHabilitarAsistencia == habilitacion.Id);
 
     if (asistencia == null)
     {
-        // Crear nuevo registro de asistencia justificada
         asistencia = new Asistencia
         {
             IdUsuario = idUsuario,
@@ -483,16 +475,15 @@ private async Task ProcesarAsistenciaParaFechaAsync(int idUsuario, DateTime fech
     }
     else
     {
-        // Actualizar el registro existente si ya existiera un estado previo erróneo o pendiente
         asistencia.HoraEntradaReal = esLicencia ? TimeSpan.Zero : horaEntrada;
         asistencia.HoraSalidaReal = esLicencia ? TimeSpan.Zero : horaSalida;
         asistencia.EstadoEntrada = esLicencia ? "LICENCIA" : "JUSTIFICADO";
         asistencia.EstadoSalida = esLicencia ? "LICENCIA" : "JUSTIFICADO";
         _context.Set<Asistencia>().Update(asistencia);
     }
+    
+    await _context.SaveChangesAsync();
 }
-
-
 
 
 
