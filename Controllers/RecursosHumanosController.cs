@@ -330,173 +330,171 @@ namespace control_asistencia.Controllers
             return RedirectToAction("Index", "RecursosHumanos");
         }
 
-
-
-
-
-       [HttpPost]
-[IgnoreAntiforgeryToken]
+[HttpPost]
 [ValidateAntiForgeryToken]
 public async Task<IActionResult> GestionarSolicitud(int id, string accion, string respuestaRrgg)
 {
+    // 1. Identificar quién está revisando (RRHH)
     var claimId = User.FindFirst(ClaimTypes.NameIdentifier);
     if (claimId == null) return RedirectToAction("Logout", "Auth");
     int idUsuarioRevisor = int.Parse(claimId.Value);
 
+    // 2. Buscar la solicitud original con sus relaciones necesarias
     var solicitud = await _context.Solicitudes
         .Include(s => s.Usuario)
         .FirstOrDefaultAsync(s => s.Id == id);
 
-    if (solicitud == null)
-    {
-        TempData["Error"] = "La solicitud no fue encontrada.";
-        return RedirectToAction(nameof(Index));
-    }
+    if (solicitud == null) return NotFound();
 
-    if (solicitud.EstadoSolicitud != "PENDIENTE")
-    {
-        TempData["Error"] = "Esta solicitud ya fue procesada anteriormente.";
-        return RedirectToAction(nameof(Index));
-    }
-
+    // 3. Capturar estado para trazabilidad
     string estadoAntiguo = solicitud.EstadoSolicitud;
-    
-    // Normalizamos la acción para evitar problemas de espacios o mayúsculas/minúsculas
-    string accionNormalizada = accion?.Trim().ToUpper();
-    string estadoNuevo = (accionNormalizada == "APROBAR") ? "APROBADO" : "RECHAZADO";
+    string estadoNuevo = accion == "APROBAR" ? "APROBADO" : "RECHAZADO";
 
-    if (accionNormalizada == "APROBAR")
+    // Usaremos una transacción de Entity Framework para garantizar atomicidad
+    using var transaction = await _context.Database.BeginTransactionAsync();
+    try
     {
-        if (solicitud.TipoSolicitud == "LICENCIA_MEDICA")
+        // 4. Actualizar estado de la solicitud
+        solicitud.EstadoSolicitud = estadoNuevo;
+        _context.Update(solicitud);
+
+        // 5. Si la solicitud es APROBADA, generamos/impactamos la asistencia correspondiente
+        if (estadoNuevo == "APROBADO")
         {
-            var licencia = await _context.LicenciaMedica
-                .FirstOrDefaultAsync(l => l.IdSolicitudes == solicitud.Id);
-
-            if (licencia == null)
+            if (solicitud.TipoSolicitud == "AJUSTE_ASISTENCIA")
             {
-                TempData["Error"] = "No se encontraron los datos de la licencia médica.";
-                return RedirectToAction(nameof(Index));
-            }
+                var ajuste = await _context.AjusteAsistencia
+                    .FirstOrDefaultAsync(a => a.IdSolicitudes == solicitud.Id);
 
-            // Recorremos el rango de fechas de la licencia (pasadas, presentes o futuras)
-            for (var dt = licencia.FechaInicio.Date; dt <= licencia.FechaTermino.Date; dt = dt.AddDays(1))
-            {
-                var asistenciaDia = await _context.Asistencia
-                    .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == dt);
-
-                if (asistenciaDia != null)
+                if (ajuste != null)
                 {
-                    // Si el día ya existe (pasado o actual), actualizamos los estados a LICENCIA
-                    asistenciaDia.EstadoEntrada = "LICENCIA";
-                    asistenciaDia.EstadoSalida = "LICENCIA";
-                    _context.Asistencia.Update(asistenciaDia);
+                    await ProcesarAsistenciaParaFechaAsync(
+                        solicitud.IdUsuario, 
+                        ajuste.FechaAfectada, 
+                        ajuste.HoraEntrada, 
+                        ajuste.HoraSalida, 
+                        idUsuarioRevisor
+                    );
                 }
-                else
-                {
-                    // Si el día no existe (pasado sin registro o futuro), verificamos si la jornada está habilitada
-                    var jornada = await _context.habilitar_asistencia
-                        .FirstOrDefaultAsync(h => h.Fecha.Date == dt);
+            }
+            else if (solicitud.TipoSolicitud == "LICENCIA_MEDICA")
+            {
+                var licencia = await _context.LicenciaMedica
+                    .FirstOrDefaultAsync(l => l.IdSolicitudes == solicitud.Id);
 
-                    if (jornada == null)
+                if (licencia != null)
+                {
+                    // Recorremos desde la Fecha de Inicio hasta la Fecha de Término (inclusive)
+                    for (var fecha = licencia.FechaInicio.Date; fecha <= licencia.FechaTermino.Date; fecha = fecha.AddDays(1))
                     {
-                        jornada = new habilitar_asistencia
-                        {
-                            AbiertoPor = idUsuarioRevisor,
-                            Fecha = dt,
-                            HoraEntrada = new TimeSpan(9, 30, 0),
-                            HoraSalida = new TimeSpan(17, 30, 0),
-                            CreatAt = DateTime.Now
-                        };
-                        _context.habilitar_asistencia.Add(jornada);
-                        await _context.SaveChangesAsync();
+                        // Omitir fines de semana si tu lógica de negocio lo requiere, o procesar todos los días corridos:
+                        await ProcesarAsistenciaParaFechaAsync(
+                            solicitud.IdUsuario, 
+                            fecha, 
+                            TimeSpan.Zero, 
+                            TimeSpan.Zero, 
+                            idUsuarioRevisor, 
+                            esLicencia: true
+                        );
                     }
-
-                    // Creamos el registro de asistencia vinculado a la jornada correspondiente
-                    var nuevaAsistencia = new Asistencia
-                    {
-                        IdUsuario = solicitud.IdUsuario,
-                        IdHabilitarAsistencia = jornada.Id,
-                        CreateAt = dt,
-                        HoraEntradaReal = TimeSpan.Zero,
-                        HoraSalidaReal = TimeSpan.Zero,
-                        EstadoEntrada = "LICENCIA",
-                        EstadoSalida = "LICENCIA"
-                    };
-                    _context.Asistencia.Add(nuevaAsistencia);
                 }
             }
-
-            var hoy = DateTime.Now.Date;
-            if (solicitud.Usuario != null && licencia.FechaTermino.Date >= hoy)
-            {
-                solicitud.Usuario.Status = "LICENCIA";
-                _context.Usuarios.Update(solicitud.Usuario);
-            }
         }
-        else if (solicitud.TipoSolicitud == "AJUSTE_ASISTENCIA")
+
+        // 6. Inserción en tabla LOG
+        var nuevoLog = new Log
         {
-            var ajuste = await _context.AjusteAsistencia
-                .FirstOrDefaultAsync(a => a.IdSolicitudes == solicitud.Id);
+            IdSolicitudes = solicitud.Id,
+            RevisadoPor = idUsuarioRevisor,
+            Respuesta = string.IsNullOrWhiteSpace(respuestaRrgg) ? "Sin observaciones emitidas" : respuestaRrgg,
+            CreateAt = DateTime.Now
+        };
+        _context.Log.Add(nuevoLog);
+        await _context.SaveChangesAsync(); // Guardar para obtener el ID del Log
 
-            if (ajuste == null)
-            {
-                TempData["Error"] = "No se encontraron los datos del ajuste de asistencia.";
-                return RedirectToAction(nameof(Index));
-            }
+        // 7. Inserción en tabla LOG_MODIFICACION
+        var logModificacion = new LogModificacion
+        {
+            IdLog = nuevoLog.Id,
+            Tabla = "solicitudes",
+            Columna = "estado_solicitud",
+            ValorAntiguo = estadoAntiguo,
+            ValorNuevo = estadoNuevo
+        };
+        _context.LogModificacion.Add(logModificacion);
 
-            var asistenciaAfectada = await _context.Asistencia
-                .FirstOrDefaultAsync(a => a.IdUsuario == solicitud.IdUsuario && a.CreateAt.Date == ajuste.FechaAfectada.Date);
+        // Confirmar cambios globales
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
 
-            if (asistenciaAfectada == null)
-            {
-                TempData["Error"] = $"Error al aceptar: El usuario no registra asistencia en la fecha afectada ({ajuste.FechaAfectada:dd-MM-yyyy}).";
-                return RedirectToAction(nameof(Index));
-            }
-
-            asistenciaAfectada.HoraEntradaReal = ajuste.HoraEntrada;
-            asistenciaAfectada.HoraSalidaReal = ajuste.HoraSalida;
-            asistenciaAfectada.EstadoEntrada = "AJUSTADO";
-            asistenciaAfectada.EstadoSalida = "AJUSTADO";
-
-            var spanHoras = ajuste.HoraSalida - ajuste.HoraEntrada;
-            if (spanHoras > TimeSpan.Zero)
-            {
-                asistenciaAfectada.HorasReales = spanHoras;
-                asistenciaAfectada.HorasTrabajadas = spanHoras;
-            }
-
-            _context.Asistencia.Update(asistenciaAfectada);
-        }
+        TempData["Mensaje"] = $"La solicitud ha sido {estadoNuevo} exitosamente y la asistencia fue actualizada.";
+    }
+    catch (Exception ex)
+    {
+        // Si ocurre un error (ej. falta de habilitación o fallo de BD), revertimos todo
+        await transaction.RollbackAsync();
+        TempData["Mensaje"] = $"Error al procesar la solicitud: {ex.Message}. Operación cancelada.";
     }
 
-    solicitud.EstadoSolicitud = estadoNuevo;
-    _context.Update(solicitud);
-
-    var nuevoLog = new Log
-    {
-        IdSolicitudes = solicitud.Id,
-        RevisadoPor = idUsuarioRevisor,
-        Respuesta = string.IsNullOrEmpty(respuestaRrgg) ? "Sin observaciones emitidas" : respuestaRrgg,
-        CreateAt = DateTime.Now
-    };
-    _context.Log.Add(nuevoLog);
-
-    await _context.SaveChangesAsync();
-
-    var logModificacion = new LogModificacion
-    {
-        IdLog = nuevoLog.Id,
-        Tabla = "solicitudes",
-        Columna = "estado_solicitud",
-        ValorAntiguo = estadoAntiguo,
-        ValorNuevo = estadoNuevo
-    };
-    _context.LogModificacion.Add(logModificacion);
-
-    await _context.SaveChangesAsync();
-
-    TempData["Mensaje"] = $"La solicitud ha sido {estadoNuevo} exitosamente y la asistencia/auditoría se actualizó.";
     return RedirectToAction(nameof(Index));
 }
+
+/// <label>Método Auxiliar Privado para Gestionar el Vínculo con Asistencia</label>
+private async Task ProcesarAsistenciaParaFechaAsync(int idUsuario, DateTime fecha, TimeSpan horaEntrada, TimeSpan horaSalida, int idAdmin, bool esLicencia = false)
+{
+    // A. Buscar si ya existe una "habilitación de asistencia" para ese día exacto
+    var habilitacion = await _context.Set<habilitar_asistencia>()
+        .FirstOrDefaultAsync(h => h.Fecha.Date == fecha.Date);
+
+    // Si el administrador nunca abrió asistencia para este día, creamos una por defecto para respaldar la justificación
+    if (habilitacion == null)
+    {
+        habilitacion = new habilitar_asistencia
+        {
+            AbiertoPor = idAdmin,
+            Fecha = fecha.Date,
+            HoraEntrada = new TimeSpan(9, 30, 0),
+            HoraSalida = new TimeSpan(17, 30, 0),
+            CreatAt = DateTime.Now
+        };
+        _context.Set<habilitar_asistencia>().Add(habilitacion);
+        await _context.SaveChangesAsync(); // Guardamos para obtener el Id de habilitación
+    }
+
+    // B. Verificar si el usuario ya tiene un registro de asistencia para esa fecha y habilitación
+    var asistencia = await _context.Set<Asistencia>()
+        .FirstOrDefaultAsync(a => a.IdUsuario == idUsuario && a.IdHabilitarAsistencia == habilitacion.Id);
+
+    if (asistencia == null)
+    {
+        // Crear nuevo registro de asistencia justificada
+        asistencia = new Asistencia
+        {
+            IdUsuario = idUsuario,
+            IdHabilitarAsistencia = habilitacion.Id,
+            Estado = true,
+            HoraEntradaReal = esLicencia ? TimeSpan.Zero : horaEntrada,
+            HoraSalidaReal = esLicencia ? TimeSpan.Zero : horaSalida,
+            EstadoEntrada = esLicencia ? "LICENCIA" : "JUSTIFICADO",
+            EstadoSalida = esLicencia ? "LICENCIA" : "JUSTIFICADO",
+            CreateAt = DateTime.Now
+        };
+        _context.Set<Asistencia>().Add(asistencia);
+    }
+    else
+    {
+        // Actualizar el registro existente si ya existiera un estado previo erróneo o pendiente
+        asistencia.HoraEntradaReal = esLicencia ? TimeSpan.Zero : horaEntrada;
+        asistencia.HoraSalidaReal = esLicencia ? TimeSpan.Zero : horaSalida;
+        asistencia.EstadoEntrada = esLicencia ? "LICENCIA" : "JUSTIFICADO";
+        asistencia.EstadoSalida = esLicencia ? "LICENCIA" : "JUSTIFICADO";
+        _context.Set<Asistencia>().Update(asistencia);
+    }
+}
+
+
+
+
+
     }
 }
