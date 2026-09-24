@@ -196,10 +196,11 @@
                     <i class="bi bi-chat-square-text-fill text-info me-2"></i> Respuesta de Recursos Humanos
                 </h5>
 
-                <!-- CORRECCIÓN APLICADA AQUÍ: Se eliminó asp-controller para que use el controlador actual por defecto -->
                 <form asp-action="GestionarSolicitud" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="id" value="@Model.Id" />
+                    <!-- Input oculto garantizado para enviar la acción -->
+                    <input type="hidden" id="inputAccion" name="accion" value="" />
 
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-semibold">Comentarios u Observación</label>
@@ -207,10 +208,10 @@
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" name="accion" value="APROBAR" class="btn btn-success fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Aprobar esta solicitud? Se validará la asistencia en el sistema.');">
+                        <button type="submit" onclick="document.getElementById('inputAccion').value='APROBAR';" class="btn btn-success fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Aprobar esta solicitud? Se validará la asistencia en el sistema.');">
                             <i class="bi bi-check-circle-fill me-1"></i> Aprobar Solicitud
                         </button>
-                        <button type="submit" name="accion" value="RECHAZAR" class="btn btn-outline-danger fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Rechazar esta solicitud?');">
+                        <button type="submit" onclick="document.getElementById('inputAccion').value='RECHAZAR';" class="btn btn-outline-danger fw-bold py-2 shadow-sm" onclick="return confirm('¿Confirma que desea Rechazar esta solicitud?');">
                             <i class="bi bi-x-circle-fill me-1"></i> Rechazar Solicitud
                         </button>
                     </div>
