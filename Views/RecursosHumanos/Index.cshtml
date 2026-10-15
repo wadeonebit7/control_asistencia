@@ -35,6 +35,13 @@
             color: #e2e8f0 !important;
             vertical-align: middle;
         }
+
+    .custom-select-filter {
+        background: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        color: #f8fafc !important;
+        border-radius: 8px;
+    }
 </style>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -107,11 +114,11 @@
         </div>
     }
 
-    <!-- Tabla de Solicitudes -->
-    <div class="dashboard-card p-4">
+    <!-- BLOQUE 1: BANDEJA DE ENTRADA (PENDIENTES) -->
+    <div class="dashboard-card p-4 mb-4">
         <div class="d-flex align-items-center mb-4">
-            <i class="bi bi-inbox-fill text-info fs-4 me-2"></i>
-            <h5 class="text-white mb-0 fw-bold">Bandeja de Entrada de Solicitudes</h5>
+            <i class="bi bi-inbox-fill text-warning fs-4 me-2"></i>
+            <h5 class="text-white mb-0 fw-bold">Por Revisar (Pendientes)</h5>
         </div>
 
         <div class="table-responsive">
@@ -135,7 +142,7 @@
                                 <td class="text-muted small">@item.CreateAt.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-sm bg-info bg-opacity-10 rounded-circle text-info d-flex align-items-center justify-content-center fw-bold me-2" style="width: 32px; height: 32px; font-size: 0.85rem;">
+                                        <div class="avatar-sm bg-warning bg-opacity-10 rounded-circle text-warning d-flex align-items-center justify-content-center fw-bold me-2" style="width: 32px; height: 32px; font-size: 0.85rem;">
                                             @item.Usuario.Personal.Nombre.Substring(0, 1)
                                         </div>
                                         <span class="fw-semibold text-white">@item.Usuario.Personal.Nombre @item.Usuario.Personal.Apellido</span>
@@ -145,7 +152,6 @@
                                 <td>
                                     @if (item.TipoSolicitud == "LICENCIA_MEDICA")
                                     {
-                                        <!-- Corregido: texto claro y visible -->
                                         <span class="badge bg-primary text-white px-3 py-1.5 rounded-pill fw-semibold"><i class="bi bi-heart-pulse-fill me-1"></i>Licencia Médica</span>
                                     }
                                     else
@@ -179,4 +185,104 @@
             </table>
         </div>
     </div>
+
+    <!-- BLOQUE 2: HISTORIAL (APROBADAS / RECHAZADAS) -->
+    <div class="dashboard-card p-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-archive-fill text-info fs-4 me-2"></i>
+                <h5 class="text-white mb-0 fw-bold">Historial de Resoluciones</h5>
+            </div>
+            
+            <!-- FILTRO INTERACTIVO -->
+            <div class="d-flex align-items-center gap-2">
+                <label class="text-muted small fw-semibold text-nowrap"><i class="bi bi-funnel"></i> Filtrar por:</label>
+                <select id="filtroEstado" class="form-select form-select-sm custom-select-filter">
+                    <option value="TODOS">Todas las resueltas</option>
+                    <option value="APROBADO">Solo Aprobadas</option>
+                    <option value="RECHAZADO">Solo Rechazadas</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom align-middle text-nowrap" id="tablaHistorial">
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>TRABAJADOR</th>
+                        <th>TIPO TRÁMITE</th>
+                        <th>MI RESPUESTA</th>
+                        <th>ESTADO FINAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (ViewBag.Historial != null && ((IEnumerable<control_asistencia.Models.Solicitudes>)ViewBag.Historial).Any())
+                    {
+                        foreach (var item in (IEnumerable<control_asistencia.Models.Solicitudes>)ViewBag.Historial)
+                        {
+                            <tr class="fila-historial" data-estado="@item.EstadoSolicitud">
+                                <td class="text-muted small">@item.CreateAt.ToString("dd/MM/yyyy")</td>
+                                <td><span class="fw-semibold text-white">@item.Usuario.Personal.Nombre @item.Usuario.Personal.Apellido</span></td>
+                                <td>
+                                    @if (item.TipoSolicitud == "LICENCIA_MEDICA")
+                                    {
+                                        <span class="text-primary small fw-bold"><i class="bi bi-heart-pulse-fill me-1"></i>Licencia</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-info small fw-bold"><i class="bi bi-calendar2-check-fill me-1"></i>Ajuste</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="text-muted small text-wrap" style="max-width: 250px; display: inline-block;">
+                                        @{
+                                            var log = item.Logs?.OrderByDescending(l => l.CreateAt).FirstOrDefault();
+                                            @(log != null ? log.Respuesta : "Sin comentarios adicionales")
+                                        }
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (item.EstadoSolicitud == "APROBADO")
+                                    {
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"><i class="bi bi-check-circle me-1"></i> Aprobado</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1"><i class="bi bi-x-circle me-1"></i> Rechazado</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No hay historial de resoluciones previas.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Script para filtrar la tabla de historial instantáneamente
+        document.getElementById('filtroEstado').addEventListener('change', function() {
+            const filtro = this.value;
+            const filas = document.querySelectorAll('.fila-historial');
+
+            filas.forEach(fila => {
+                const estadoFila = fila.getAttribute('data-estado');
+                
+                if (filtro === 'TODOS' || estadoFila === filtro) {
+                    fila.style.display = ''; // Mostrar
+                } else {
+                    fila.style.display = 'none'; // Ocultar
+                }
+            });
+        });
+    </script>
+}

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic; // IMPORTANTE: Asegúrate de tener este using para ICollection
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -43,5 +44,8 @@ namespace control_asistencia.Models
         [Required]
         [Column("CreateAt")]
         public DateTime CreateAt { get; set; } = DateTime.Now;
+
+        // ESTA ES LA LÍNEA NUEVA QUE FALTA:
+        public virtual ICollection<Log> Logs { get; set; } = new List<Log>();
     }
 }

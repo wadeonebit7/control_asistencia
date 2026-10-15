@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PdfiumViewer;
 using System;
+using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
@@ -27,22 +28,40 @@ namespace control_asistencia.Controllers
             _env = env;
         }
 
+
+
         [Authorize(Roles = "EMPLEADO")]
         [HttpGet]
         public async Task<IActionResult> Index(int? mes)
         {
-            int idUsuarioLogueado = 1;
+            // 1. OBTENER EL ID REAL DEL USUARIO LOGUEADO DESDE SU SESIÓN
+            var claimId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (claimId == null) return RedirectToAction("Logout", "Auth"); // Si por alguna razón no hay sesión, lo saca
+
+            int idUsuarioLogueado = int.Parse(claimId.Value);
+
             int mesConsulta = mes ?? DateTime.Now.Month;
 
+            // 2. Traer la ASISTENCIA del usuario real
             var registrosAsistencia = await _context.Asistencia
                 .Where(a => a.IdUsuario == idUsuarioLogueado && a.CreateAt.Month == mesConsulta)
                 .OrderByDescending(a => a.CreateAt)
                 .ToListAsync();
 
+            // 3. Traer las SOLICITUDES del usuario real (Incluyendo la respuesta de RRHH)
+            var misSolicitudes = await _context.Solicitudes
+                .Include(s => s.Logs)
+                .Where(s => s.IdUsuario == idUsuarioLogueado && s.Estado == true)
+                .OrderByDescending(s => s.CreateAt)
+                .ToListAsync();
+
+            // 4. Guardar las solicitudes en el ViewBag para leerlas en la 4ta Pestaña
+            ViewBag.MisSolicitudes = misSolicitudes;
+
             return View(registrosAsistencia);
         }
 
-        // Quitamos el ValidateAntiForgeryToken aquí para evitar el Error 400 en la terminal pública
+
         [AllowAnonymous]
         [HttpPost]
         public async Task<IActionResult> LoginClaveDinamica(string claveDinamica)
@@ -53,6 +72,9 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            claveDinamica = claveDinamica.Trim().ToUpper();
+
+            // 1. Buscamos al usuario
             var usuario = await _context.Usuarios
                 .Include(u => u.Personal)
                     .ThenInclude(p => p.Rol)
@@ -64,15 +86,26 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
+            // =====================================================================
+            // NUEVA VALIDACIÓN: BLOQUEAR SI EL USUARIO ESTÁ CON LICENCIA
+            // =====================================================================
+            if (usuario.Status == "LICENCIA")
+            {
+                TempData["Error"] = $"Estimado/a {usuario.Personal.Nombre}, actualmente te encuentras con Licencia Médica activa. No puedes marcar asistencia.";
+                return RedirectToAction("LogoutAsistencia", "Auth");
+            }
+            // =====================================================================
+
+            // 2. Conservamos la sesión temporal para las vistas de Entrada/Salida
             TempData["IdUsuario"] = usuario.Id;
             TempData["UsuarioLogueado"] = $"{usuario.Personal.Nombre} {usuario.Personal.Apellido}";
             TempData.Keep("IdUsuario");
             TempData.Keep("UsuarioLogueado");
 
             var fechaHoy = DateTime.Now.Date;
-            var horaActual = DateTime.Now.TimeOfDay;
 
-            var jornadaHabilitada = await _context.habilitar_asistencia
+            // 3. Verificamos la jornada
+            var jornadaHabilitada = await _context.habilitar_asistencia // Ojo: asegúrate que tu DbSet se llame HabilitarAsistencia con mayúsculas si sigues las convenciones de C#
                 .FirstOrDefaultAsync(h => h.Fecha.Date == fechaHoy);
 
             if (jornadaHabilitada == null)
@@ -81,20 +114,28 @@ namespace control_asistencia.Controllers
                 return RedirectToAction("LogoutAsistencia", "Auth");
             }
 
-            TimeSpan cambioTurnoFijo = new TimeSpan(14, 0, 0);
+            // 4. LÓGICA DE ENRUTAMIENTO: ¿A qué pantalla lo enviamos?
+            var asistenciaHoy = await _context.Asistencia
+                .FirstOrDefaultAsync(a => a.IdUsuario == usuario.Id && a.CreateAt.Date == fechaHoy);
 
-            if (horaActual >= cambioTurnoFijo)
+            if (asistenciaHoy == null)
             {
-                return RedirectToAction("SalidaAsistencia");
+                // NO TIENE ASISTENCIA HOY -> Lo enviamos a la pantalla de confirmar ENTRADA
+                return RedirectToAction("EntradaAsistencia", "Trabajador");
             }
             else
             {
-                return RedirectToAction("EntradaAsistencia");
+                // YA TIENE ASISTENCIA HOY -> Validamos si ya salió
+                if (asistenciaHoy.EstadoSalida != "PENDIENTE")
+                {
+                    TempData["Error"] = $"Estimado/a {usuario.Personal.Nombre}, ya registraste tu entrada y salida el día de hoy.";
+                    return RedirectToAction("LogoutAsistencia", "Auth");
+                }
+
+                // TIENE ENTRADA PERO NO HA SALIDO -> Lo enviamos a la pantalla de confirmar SALIDA
+                return RedirectToAction("SalidaAsistencia", "Trabajador");
             }
         }
-
-
-
 
 
         [AllowAnonymous]
@@ -112,6 +153,21 @@ namespace control_asistencia.Controllers
         }
 
 
+
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult RedirigirEntrada()
+        {
+            // Vista intermedia que muestra el mensaje verde por 1.5 segundos y salta a la confirmación
+            return View("~/Views/Auth/RedirigirAccion.cshtml", Url.Action("EntradaAsistencia", "Trabajador"));
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult RedirigirSalida()
+        {
+            return View("~/Views/Auth/RedirigirAccion.cshtml", Url.Action("SalidaAsistencia", "Trabajador"));
+        }
 
 
 
@@ -300,166 +356,189 @@ namespace control_asistencia.Controllers
 
 
 
+
         [HttpPost]
         public async Task<IActionResult> ExtraerDatosLicencia(IFormFile documento, [FromForm] string tipoSolicitud)
         {
             if (documento == null || documento.Length == 0) return BadRequest("Archivo vacío.");
 
-            var tempPath = Path.GetTempFileName();
-            using (var stream = new FileStream(tempPath, FileMode.Create))
-            {
-                await documento.CopyToAsync(stream);
-            }
+            string extension = Path.GetExtension(documento.FileName).ToLower();
+            string tempPath = Path.GetTempFileName();
+            string tempPathWithExt = tempPath + extension;
+            string outputPrefix = Path.Combine(Path.GetTempPath(), "ocr_page_" + Guid.NewGuid());
 
-            string textoExtraido = "";
-            string tessdataPath = Path.Combine(_env.ContentRootPath, "tessdata");
-
-            // ==========================================================
-            // LECTURA DE PDF Y JPG
-            // ==========================================================
             try
             {
-                string extension = Path.GetExtension(documento.FileName).ToLower();
-
-                using (var engine = new TesseractEngine(tessdataPath, "spa", EngineMode.Default))
+                using (var stream = new FileStream(tempPathWithExt, FileMode.Create))
                 {
-                    engine.SetVariable("tessedit_pageseg_mode", "3");
+                    await documento.CopyToAsync(stream);
+                }
 
-                    if (extension == ".pdf")
+                string textoExtraido = "";
+
+                if (extension == ".pdf")
+                {
+                    var psiPdf = new ProcessStartInfo
                     {
-                        using (var pdfDocument = PdfiumViewer.PdfDocument.Load(tempPath))
-                        {
-                            for (int i = 0; i < pdfDocument.PageCount; i++)
-                            {
-                                using (var image = pdfDocument.Render(i, 300, 300, PdfiumViewer.PdfRenderFlags.CorrectFromDpi))
-                                {
-                                    string pageTempPath = Path.GetTempFileName() + ".png";
-                                    image.Save(pageTempPath, System.Drawing.Imaging.ImageFormat.Png);
+                        FileName = "pdftoppm",
+                        Arguments = $"-png -r 300 \"{tempPathWithExt}\" \"{outputPrefix}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
 
-                                    using (var img = Pix.LoadFromFile(pageTempPath))
-                                    {
-                                        using (var page = engine.Process(img))
-                                        {
-                                            textoExtraido += "\n" + page.GetText();
-                                        }
-                                    }
-                                    System.IO.File.Delete(pageTempPath);
-                                }
-                            }
-                        }
+                    using (var processPdf = Process.Start(psiPdf))
+                    {
+                        processPdf.WaitForExit();
                     }
-                    else
+
+                    string tempDir = Path.GetDirectoryName(outputPrefix);
+                    string filePrefix = Path.GetFileName(outputPrefix);
+                    var generatedImages = Directory.GetFiles(tempDir, filePrefix + "*.png").OrderBy(f => f).ToArray();
+
+                    foreach (var imgPath in generatedImages)
                     {
-                        using (var img = Pix.LoadFromFile(tempPath))
+                        string outputBase = Path.GetTempFileName();
+                        var psiTess = new ProcessStartInfo
                         {
-                            using (var page = engine.Process(img))
-                            {
-                                textoExtraido = page.GetText();
-                            }
+                            FileName = "tesseract",
+                            Arguments = $"\"{imgPath}\" \"{outputBase}\" -l spa",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+
+                        using (var processTess = Process.Start(psiTess))
+                        {
+                            processTess.WaitForExit();
                         }
+
+                        string txtFile = outputBase + ".txt";
+                        if (System.IO.File.Exists(txtFile))
+                        {
+                            textoExtraido += "\n" + await System.IO.File.ReadAllTextAsync(txtFile);
+                            System.IO.File.Delete(txtFile);
+                        }
+                        if (System.IO.File.Exists(outputBase)) System.IO.File.Delete(outputBase);
+                        if (System.IO.File.Exists(imgPath)) System.IO.File.Delete(imgPath);
                     }
                 }
+                else
+                {
+                    string outputBase = Path.GetTempFileName();
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "tesseract",
+                        Arguments = $"\"{tempPathWithExt}\" \"{outputBase}\" -l spa",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(psi))
+                    {
+                        process.WaitForExit();
+                    }
+
+                    string txtFile = outputBase + ".txt";
+                    if (System.IO.File.Exists(txtFile))
+                    {
+                        textoExtraido = await System.IO.File.ReadAllTextAsync(txtFile);
+                        System.IO.File.Delete(txtFile);
+                    }
+                    if (System.IO.File.Exists(outputBase)) System.IO.File.Delete(outputBase);
+                }
+
+                if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
+                if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
+
+                // =========================================================================
+                // DEPURACIÓN: Ver qué leyó exactamente Tesseract en la consola de Render
+                // =========================================================================
+                Console.WriteLine("========== TEXTO EXTRAÍDO POR OCR ==========");
+                Console.WriteLine(textoExtraido);
+                Console.WriteLine("============================================");
+
+                if (tipoSolicitud == "LICENCIA_MEDICA")
+                {
+                    var folioMatch = Regex.Match(textoExtraido, @"Folio\s*Licencia.*?([0-9]{5,}[-.]?[0-9Kk])", RegexOptions.IgnoreCase);
+                    string folioStr = folioMatch.Success ? folioMatch.Groups[1].Value.Replace(".", "-").Trim().ToUpper() : "Revisar manual";
+
+                    var profesionalMatch = Regex.Match(textoExtraido, @"Profesional.*?([A-Za-zÑñÁÉÍÓÚáéíóú\s\.]+?)(?=\r|\n|Entidad|$)", RegexOptions.IgnoreCase);
+                    string profStr = profesionalMatch.Success ? profesionalMatch.Groups[1].Value.Trim() : "Revisar manual";
+
+                    var diasMatch = Regex.Match(textoExtraido, @"N[*°ºo\W]*\s*de\s*d[ií]as.*?(\d{1,3})", RegexOptions.IgnoreCase);
+                    string diasStr = diasMatch.Success ? diasMatch.Groups[1].Value.Trim() : "Revisar manual";
+
+                    var fechaOtorgamientoMatch = Regex.Match(textoExtraido, @"Fecha de Emisi[óo]n.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
+                    string fechaOtorStr = "Revisar manual";
+                    if (fechaOtorgamientoMatch.Success) fechaOtorStr = $"{fechaOtorgamientoMatch.Groups[1].Value}-{fechaOtorgamientoMatch.Groups[2].Value}-{fechaOtorgamientoMatch.Groups[3].Value}";
+
+                    var fechaInicioMatch = Regex.Match(textoExtraido, @"Inicio de Reposo.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
+                    string fechaInicioStr = "Revisar manual";
+                    if (fechaInicioMatch.Success) fechaInicioStr = $"{fechaInicioMatch.Groups[1].Value}-{fechaInicioMatch.Groups[2].Value}-{fechaInicioMatch.Groups[3].Value}";
+
+                    var tipoMatch = Regex.Match(textoExtraido, @"Tipo de licencia[\s:]*([A-Za-zÑñÁÉÍÓÚáéíóú\s]+)", RegexOptions.IgnoreCase);
+                    string tipificacionStr = "TIPO_1";
+                    if (tipoMatch.Success)
+                    {
+                        string leido = tipoMatch.Groups[1].Value.ToUpper();
+                        if (leido.Contains("ENFERMEDAD")) tipificacionStr = "TIPO_1";
+                        else if (leido.Contains("PREVENTIVA")) tipificacionStr = "TIPO_2";
+                        else if (leido.Contains("MATERNAL")) tipificacionStr = "TIPO_3";
+                        else if (leido.Contains("HIJO")) tipificacionStr = "TIPO_4";
+                        else if (leido.Contains("TRABAJO") || leido.Contains("ACCIDENTE")) tipificacionStr = "TIPO_5";
+                        else if (leido.Contains("TRAYECTO")) tipificacionStr = "TIPO_6";
+                        else if (leido.Contains("PROFESIONAL")) tipificacionStr = "TIPO_7";
+                    }
+
+                    return Json(new { folio = folioStr, diasReposo = diasStr, profesional = profStr, fechaInicio = fechaInicioStr, fechaOtorgamiento = fechaOtorStr, tipificacion = tipificacionStr });
+                }
+                else if (tipoSolicitud == "AJUSTE_ASISTENCIA")
+                {
+                    var fechaAfectadaMatch = Regex.Match(textoExtraido, @"incidente a ajustar[\s:|]+(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
+                    var horaEntradaMatch = Regex.Match(textoExtraido, @"entrada real trabajada[\s:|]+(\d{1,2}:\d{2})", RegexOptions.IgnoreCase);
+                    var horaSalidaMatch = Regex.Match(textoExtraido, @"salida real trabajada[\s:|]+(\d{1,2}:\d{2})", RegexOptions.IgnoreCase);
+                    var emitidoPorMatch = Regex.Match(textoExtraido, @"NOMBRE DEL SUPERVISOR/JEFE[\s:|]+([A-Za-zÑñÁÉÍÓÚáéíóú\s]+?)(?=\r|\n|Cargo|$)", RegexOptions.IgnoreCase);
+
+                    string tipoIncidenciaStr = "NO MARCADA";
+
+                    bool marcoEntrada = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}No marc[óo]\s+entrada", RegexOptions.IgnoreCase);
+                    bool marcoSalida = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}No marc[óo]\s+salida", RegexOptions.IgnoreCase);
+                    bool marcoIncompleta = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}Marcaci[óo]n\s+incompleta", RegexOptions.IgnoreCase);
+                    bool marcoOtro = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}Otro", RegexOptions.IgnoreCase);
+
+                    if (marcoEntrada) tipoIncidenciaStr = "ENTRADA";
+                    else if (marcoSalida) tipoIncidenciaStr = "SALIDA";
+                    else if (marcoIncompleta) tipoIncidenciaStr = "NO MARCADA";
+                    else if (marcoOtro) tipoIncidenciaStr = "OTRO";
+
+                    string fechaAfectadaStr = fechaAfectadaMatch.Success ? $"{fechaAfectadaMatch.Groups[1].Value}-{fechaAfectadaMatch.Groups[2].Value}-{fechaAfectadaMatch.Groups[3].Value}" : "Revisar manual";
+                    string horaEntradaStr = horaEntradaMatch.Success ? horaEntradaMatch.Groups[1].Value : "Revisar manual";
+                    string horaSalidaStr = horaSalidaMatch.Success ? horaSalidaMatch.Groups[1].Value : "Revisar manual";
+                    string emitidoPorStr = emitidoPorMatch.Success ? emitidoPorMatch.Groups[1].Value.Trim() : "Revisar manual";
+
+                    return Json(new
+                    {
+                        fechaAfectada = fechaAfectadaStr,
+                        horaEntrada = horaEntradaStr,
+                        horaSalida = horaSalidaStr,
+                        emitidoPor = emitidoPorStr,
+                        tipoIncidencia = tipoIncidenciaStr
+                    });
+                }
+
+                return BadRequest("Tipo de solicitud no válido.");
             }
             catch (Exception ex)
             {
+                if (System.IO.File.Exists(tempPathWithExt)) System.IO.File.Delete(tempPathWithExt);
                 if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
-                System.Diagnostics.Debug.WriteLine("EXCEPCIÓN OCR: " + ex.ToString());
-                return StatusCode(500, $"Error OCR: {ex.Message}");
+
+                Console.WriteLine("================ EXCEPCIÓN OCR CLI CRÍTICA ================");
+                Console.WriteLine(ex.ToString());
+                Console.WriteLine("===========================================================");
+
+                return StatusCode(500, $"Error OCR Interno: {ex.Message}");
             }
-
-            if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
-
-            // =========================================================================
-            // EXTRACCIÓN DEPENDIENDO DE LO QUE SELECCIONÓ EL USUARIO
-            // =========================================================================
-
-            if (tipoSolicitud == "LICENCIA_MEDICA")
-            {
-                var folioMatch = Regex.Match(textoExtraido, @"Folio\s*Licencia.*?([0-9]{5,}[-.]?[0-9Kk])", RegexOptions.IgnoreCase);
-                string folioStr = folioMatch.Success ? folioMatch.Groups[1].Value.Replace(".", "-").Trim().ToUpper() : "Revisar manual";
-
-                var profesionalMatch = Regex.Match(textoExtraido, @"Profesional.*?([A-Za-zÑñÁÉÍÓÚáéíóú\s\.]+?)(?=\r|\n|Entidad|$)", RegexOptions.IgnoreCase);
-                string profStr = profesionalMatch.Success ? profesionalMatch.Groups[1].Value.Trim() : "Revisar manual";
-
-                var diasMatch = Regex.Match(textoExtraido, @"N[*°ºo\W]*\s*de\s*d[ií]as.*?(\d{1,3})", RegexOptions.IgnoreCase);
-                string diasStr = diasMatch.Success ? diasMatch.Groups[1].Value.Trim() : "Revisar manual";
-
-                var fechaOtorgamientoMatch = Regex.Match(textoExtraido, @"Fecha de Emisi[óo]n.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
-                string fechaOtorStr = "Revisar manual";
-                if (fechaOtorgamientoMatch.Success) fechaOtorStr = $"{fechaOtorgamientoMatch.Groups[1].Value}-{fechaOtorgamientoMatch.Groups[2].Value}-{fechaOtorgamientoMatch.Groups[3].Value}";
-
-                var fechaInicioMatch = Regex.Match(textoExtraido, @"Inicio de Reposo.*?(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
-                string fechaInicioStr = "Revisar manual";
-                if (fechaInicioMatch.Success) fechaInicioStr = $"{fechaInicioMatch.Groups[1].Value}-{fechaInicioMatch.Groups[2].Value}-{fechaInicioMatch.Groups[3].Value}";
-
-                var tipoMatch = Regex.Match(textoExtraido, @"Tipo de licencia[\s:]*([A-Za-zÑñÁÉÍÓÚáéíóú\s]+)", RegexOptions.IgnoreCase);
-                string tipificacionStr = "TIPO_1";
-                if (tipoMatch.Success)
-                {
-                    string leido = tipoMatch.Groups[1].Value.ToUpper();
-                    if (leido.Contains("ENFERMEDAD")) tipificacionStr = "TIPO_1";
-                    else if (leido.Contains("PREVENTIVA")) tipificacionStr = "TIPO_2";
-                    else if (leido.Contains("MATERNAL")) tipificacionStr = "TIPO_3";
-                    else if (leido.Contains("HIJO")) tipificacionStr = "TIPO_4";
-                    else if (leido.Contains("TRABAJO") || leido.Contains("ACCIDENTE")) tipificacionStr = "TIPO_5";
-                    else if (leido.Contains("TRAYECTO")) tipificacionStr = "TIPO_6";
-                    else if (leido.Contains("PROFESIONAL")) tipificacionStr = "TIPO_7";
-                }
-
-                return Json(new { folio = folioStr, diasReposo = diasStr, profesional = profStr, fechaInicio = fechaInicioStr, fechaOtorgamiento = fechaOtorStr, tipificacion = tipificacionStr });
-            }
-            else if (tipoSolicitud == "AJUSTE_ASISTENCIA")
-            {
-                var fechaAfectadaMatch = Regex.Match(textoExtraido, @"incidente a ajustar[\s:|]+(\d{2})\D*(\d{2})\D*(\d{4})", RegexOptions.IgnoreCase);
-                var horaEntradaMatch = Regex.Match(textoExtraido, @"entrada real trabajada[\s:|]+(\d{1,2}:\d{2})", RegexOptions.IgnoreCase);
-                var horaSalidaMatch = Regex.Match(textoExtraido, @"salida real trabajada[\s:|]+(\d{1,2}:\d{2})", RegexOptions.IgnoreCase);
-                var emitidoPorMatch = Regex.Match(textoExtraido, @"NOMBRE DEL SUPERVISOR/JEFE[\s:|]+([A-Za-zÑñÁÉÍÓÚáéíóú\s]+?)(?=\r|\n|Cargo|$)", RegexOptions.IgnoreCase);
-
-                string tipoIncidenciaStr = "NO MARCADA";
-
-                // NUEVO: Regex Ultratolerante. 
-                // Busca una X seguida de 0 a 4 caracteres "basura" (como corchetes rotos o espacios) y luego la palabra clave.
-                bool marcoEntrada = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}No marc[óo]\s+entrada", RegexOptions.IgnoreCase);
-                bool marcoSalida = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}No marc[óo]\s+salida", RegexOptions.IgnoreCase);
-                bool marcoIncompleta = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}Marcaci[óo]n\s+incompleta", RegexOptions.IgnoreCase);
-                bool marcoOtro = Regex.IsMatch(textoExtraido, @"[xX][^a-zA-Z0-9]{0,4}Otro", RegexOptions.IgnoreCase);
-
-                if (marcoEntrada)
-                {
-                    tipoIncidenciaStr = "ENTRADA";
-                }
-                else if (marcoSalida)
-                {
-                    tipoIncidenciaStr = "SALIDA";
-                }
-                else if (marcoIncompleta)
-                {
-                    tipoIncidenciaStr = "NO MARCADA"; // O lo que prefieras mapear aquí
-                }
-                else if (marcoOtro)
-                {
-                    tipoIncidenciaStr = "OTRO";
-                }
-
-                string fechaAfectadaStr = fechaAfectadaMatch.Success ? $"{fechaAfectadaMatch.Groups[1].Value}-{fechaAfectadaMatch.Groups[2].Value}-{fechaAfectadaMatch.Groups[3].Value}" : "Revisar manual";
-                string horaEntradaStr = horaEntradaMatch.Success ? horaEntradaMatch.Groups[1].Value : "Revisar manual";
-                string horaSalidaStr = horaSalidaMatch.Success ? horaSalidaMatch.Groups[1].Value : "Revisar manual";
-                string emitidoPorStr = emitidoPorMatch.Success ? emitidoPorMatch.Groups[1].Value.Trim() : "Revisar manual";
-
-                return Json(new
-                {
-                    fechaAfectada = fechaAfectadaStr,
-                    horaEntrada = horaEntradaStr,
-                    horaSalida = horaSalidaStr,
-                    emitidoPor = emitidoPorStr,
-                    tipoIncidencia = tipoIncidenciaStr
-                });
-            }
-
-            return BadRequest("Tipo de solicitud no válido.");
         }
-
-
 
 
 

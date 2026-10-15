@@ -140,5 +140,11 @@ namespace control_asistencia.Controllers
             TempData["Mensaje"] = "Documento enviado a Recursos Humanos exitosamente.";
             return RedirectToAction("Index", "Trabajador");
         }
+
+
+
+
+
+
     }
 }

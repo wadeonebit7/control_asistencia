@@ -238,7 +238,6 @@
         if (hasError) {
             reproducirSonido('error');
 
-            // Después de 3 segundos (3000 ms), quitamos el rojo y volvemos a la normalidad
             setTimeout(() => {
                 const alerta = document.getElementById('alertaTemporal');
                 const tarjeta = document.getElementById('mainCard');
@@ -249,12 +248,11 @@
                 }
                 if (tarjeta) {
                     tarjeta.classList.remove('card-error');
-                    // Forzamos el restablecimiento visual a los estilos base
                     tarjeta.style.background = "rgba(30, 41, 59, 0.75)";
                     tarjeta.style.borderColor = "rgba(56, 189, 248, 0.15)";
                     tarjeta.style.boxShadow = "0 20px 40px rgba(0, 0, 0, 0.4)";
                 }
-            }, 3000); // 3 segundos para el rojo
+            }, 3000);
 
         } else if (hasSuccess) {
             reproducirSonido('exito');
@@ -273,7 +271,7 @@
                     tarjeta.style.borderColor = "rgba(56, 189, 248, 0.15)";
                     tarjeta.style.boxShadow = "0 20px 40px rgba(0, 0, 0, 0.4)";
                 }
-            }, 4000); // 4 segundos para el verde
+            }, 4000);
         }
     });
 </script>
